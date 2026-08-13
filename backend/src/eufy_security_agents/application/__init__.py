@@ -1,1 +1,1 @@
-"""Application layer placeholder."""
+"""Application use cases are coordinated by the orchestration workflow."""

@@ -1,1 +1,1 @@
-"""Cross-cutting core placeholder."""
+"""Cross-cutting helpers with no eager infrastructure imports."""

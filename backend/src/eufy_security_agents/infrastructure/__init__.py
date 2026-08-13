@@ -1,1 +1,1 @@
-"""Infrastructure adapters placeholder."""
+"""Infrastructure adapters are imported explicitly at the composition root."""

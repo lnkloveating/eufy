@@ -1,0 +1,135 @@
+"""In-memory repository used by isolated workflow tests."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from uuid import uuid4
+
+from eufy_security_agents.domain.models import (
+    AgentEvent,
+    Artifact,
+    ForecastRequest,
+    ForecastRun,
+    ProductSelectionState,
+    ProductSpec,
+    RunStatus,
+    SelectionStatus,
+)
+
+
+class InMemoryRunRepository:
+    def __init__(self) -> None:
+        self.runs: dict[str, ForecastRun] = {}
+        self.events: dict[str, list[AgentEvent]] = {}
+        self.artifacts: dict[tuple[str, str], Artifact] = {}
+        self.products: dict[str, ProductSpec] = {}
+        self.selections: dict[tuple[str, str], ProductSelectionState] = {}
+
+    def create_run(self, request: ForecastRequest) -> ForecastRun:
+        now = datetime.now(UTC)
+        run = ForecastRun(
+            id=f"forecast-{uuid4().hex[:12]}",
+            status=RunStatus.PENDING,
+            stage="queued",
+            request=request,
+            created_at=now,
+            updated_at=now,
+        )
+        self.runs[run.id] = run
+        self.events[run.id] = []
+        return run
+
+    def get_run(self, run_id: str) -> ForecastRun | None:
+        return self.runs.get(run_id)
+
+    def update_run(
+        self,
+        run_id: str,
+        *,
+        status: RunStatus | None = None,
+        stage: str | None = None,
+        error: str | None = None,
+    ) -> ForecastRun:
+        run = self.runs[run_id]
+        run = run.model_copy(
+            update={
+                "status": status or run.status,
+                "stage": stage or run.stage,
+                "error": error,
+                "updated_at": datetime.now(UTC),
+            }
+        )
+        self.runs[run_id] = run
+        return run
+
+    def add_event(self, event: AgentEvent) -> AgentEvent:
+        persisted = event.model_copy(update={"id": len(self.events[event.run_id]) + 1})
+        self.events[event.run_id].append(persisted)
+        return persisted
+
+    def list_events(self, run_id: str, after_sequence: int = 0) -> list[AgentEvent]:
+        return [event for event in self.events.get(run_id, []) if event.sequence > after_sequence]
+
+    def save_artifact(self, artifact: Artifact) -> None:
+        self.artifacts[(artifact.run_id, artifact.kind)] = artifact
+
+    def get_artifact(self, run_id: str, kind: str) -> Artifact | None:
+        return self.artifacts.get((run_id, kind))
+
+    def list_artifacts(self, run_id: str) -> list[Artifact]:
+        return sorted(
+            [
+                artifact
+                for (stored_run_id, _), artifact in self.artifacts.items()
+                if stored_run_id == run_id
+            ],
+            key=lambda artifact: artifact.created_at,
+        )
+
+    def save_product(self, product: ProductSpec) -> None:
+        self.products[product.id] = product
+
+    def get_product(self, product_id: str) -> ProductSpec | None:
+        return self.products.get(product_id)
+
+    def get_selection(self, run_id: str, idempotency_key: str) -> ProductSelectionState | None:
+        return self.selections.get((run_id, idempotency_key))
+
+    def reserve_selection(self, run_id: str, idempotency_key: str, candidate_id: str) -> bool:
+        key = (run_id, idempotency_key)
+        existing = self.selections.get(key)
+        if existing is not None:
+            if existing.candidate_id != candidate_id:
+                raise ValueError("idempotency key is already bound to another candidate")
+            if existing.status != SelectionStatus.FAILED:
+                return False
+        self.selections[key] = ProductSelectionState(
+            run_id=run_id,
+            idempotency_key=idempotency_key,
+            candidate_id=candidate_id,
+            status=SelectionStatus.IN_PROGRESS,
+        )
+        return True
+
+    def complete_selection(self, run_id: str, idempotency_key: str, product_id: str) -> None:
+        key = (run_id, idempotency_key)
+        self.selections[key] = self.selections[key].model_copy(
+            update={"status": SelectionStatus.COMPLETED, "product_id": product_id, "error": None}
+        )
+
+    def fail_selection(self, run_id: str, idempotency_key: str, error: str) -> None:
+        key = (run_id, idempotency_key)
+        self.selections[key] = self.selections[key].model_copy(
+            update={"status": SelectionStatus.FAILED, "product_id": None, "error": error}
+        )
+
+    def recover_interrupted_runs(self) -> int:
+        interrupted = [run for run in self.runs.values() if run.status == RunStatus.RUNNING]
+        for run in interrupted:
+            self.update_run(
+                run.id,
+                status=RunStatus.FAILED,
+                stage="interrupted",
+                error="server restarted while the forecast was running; create a new run",
+            )
+        return len(interrupted)

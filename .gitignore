@@ -4,9 +4,10 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+pytest-cache-files-*/
 .mypy_cache/
 .ruff_cache/
-.venv/
+.venv*/
 dist/
 build/
 *.egg-info/
@@ -20,3 +21,6 @@ Thumbs.db
 logs/
 tmp/
 *.sqlite3
+*.db
+*.db-shm
+*.db-wal
