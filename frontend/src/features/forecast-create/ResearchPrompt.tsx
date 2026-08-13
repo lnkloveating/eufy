@@ -1,6 +1,18 @@
 import { ArrowRight, Search, Sparkles } from "lucide-react";
+
 import { Button } from "../../components/ui/Button";
 import { EXAMPLE_PROMPTS, type ExamplePrompt } from "./researchBrief";
+
+const REGION_LABELS: Record<string, string> = {
+  "United States": "美国",
+  China: "中国",
+  "European Union": "欧盟",
+  Global: "全球",
+};
+
+function formatRegion(region: string) {
+  return REGION_LABELS[region] ?? region;
+}
 
 export interface ResearchPromptProps {
   question: string;
@@ -9,10 +21,8 @@ export interface ResearchPromptProps {
   onStart: () => void;
   starting: boolean;
   canStart: boolean;
-  disabledReason?: string;
 }
 
-/** Deep-Research-style large research question input with example prompts. */
 export function ResearchPrompt({
   question,
   onQuestionChange,
@@ -20,10 +30,9 @@ export function ResearchPrompt({
   onStart,
   starting,
   canStart,
-  disabledReason,
 }: ResearchPromptProps) {
   return (
-    <div className="stack stack-5">
+    <div className="stack stack-6">
       <div className="research-input-wrap">
         <div className="research-input-label">
           <Search size={16} aria-hidden="true" />
@@ -45,9 +54,6 @@ export function ResearchPrompt({
           }}
         />
         <div className="research-input-foot">
-          <span className="subtle" style={{ fontSize: "var(--text-xs)" }}>
-            {disabledReason ? disabledReason : "按 ⌘/Ctrl + Enter 直接开始研究"}
-          </span>
           <Button
             variant="primary"
             size="lg"
@@ -56,14 +62,15 @@ export function ResearchPrompt({
             disabled={!canStart || starting}
             iconEnd={<ArrowRight size={17} aria-hidden="true" />}
           >
-            {starting ? "正在启动研究…" : "开始深度研究"}
+            {starting ? "正在启动研究..." : "开始深度研究"}
           </Button>
         </div>
       </div>
 
       <div className="stack stack-3">
         <span className="eyebrow row row-gap-2">
-          <Sparkles size={13} aria-hidden="true" /> 示例研究方向
+          <Sparkles size={13} aria-hidden="true" />
+          示例研究方向
         </span>
         <div className="example-grid">
           {EXAMPLE_PROMPTS.map((example) => (
@@ -76,7 +83,7 @@ export function ResearchPrompt({
               <span className="example-q">{example.question}</span>
               <span className="example-hint">
                 {[
-                  example.preset.regions?.join("、"),
+                  example.preset.regions?.map(formatRegion).join("、"),
                   example.preset.forecast_horizon_years
                     ? `未来 ${example.preset.forecast_horizon_years} 年`
                     : null,

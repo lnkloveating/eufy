@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { Layers } from "lucide-react";
 
 import {
@@ -10,10 +9,27 @@ import {
 import { DIMENSION_LABELS } from "../../lib/agentLabels";
 import { useKnowledgeCoverage } from "../../lib/queries";
 import { Field } from "../../components/ui/Field";
+import { MultiSelectCombobox } from "../../components/ui/MultiSelectCombobox";
 import { TagInput } from "../../components/ui/TagInput";
 import { areWeightsValid, type ResearchBrief } from "./researchBrief";
 
-/** Redistribute weight fractions so they sum to exactly 1.0 (integer percents). */
+const REGION_LABELS: Record<string, string> = {
+  China: "中国",
+  "United States": "美国",
+  Canada: "加拿大",
+  "United Kingdom": "英国",
+  Germany: "德国",
+  France: "法国",
+  "European Union": "欧盟",
+  Japan: "日本",
+  Australia: "澳大利亚",
+  Global: "全球",
+};
+
+function formatRegionLabel(region: string) {
+  return REGION_LABELS[region] ?? region;
+}
+
 function normalizeWeights(weights: ScoreWeights): ScoreWeights {
   const pct = SCORE_DIMENSIONS.map((key) => Math.round((weights[key] || 0) * 100));
   const total = pct.reduce((sum, value) => sum + value, 0);
@@ -23,6 +39,7 @@ function normalizeWeights(weights: ScoreWeights): ScoreWeights {
   const order = base
     .map((value, index) => ({ index, frac: value - Math.floor(value) }))
     .sort((a, b) => b.frac - a.frac);
+
   let cursor = 0;
   while (remainder > 0) {
     const target = order[cursor % order.length];
@@ -32,6 +49,7 @@ function normalizeWeights(weights: ScoreWeights): ScoreWeights {
     }
     cursor += 1;
   }
+
   const next = {} as ScoreWeights;
   SCORE_DIMENSIONS.forEach((key, index) => {
     next[key] = (floored[index] ?? 0) / 100;
@@ -76,8 +94,10 @@ function ContextChoiceField({
   const values = brief.research_context[field];
   const presets = options.research_context_options[field] ?? [];
   const custom = values.filter((value) => !presets.includes(value));
+
   const update = (next: string[]) =>
     onChange({ research_context: { ...brief.research_context, [field]: next } });
+
   return (
     <Field label={label} hint="可多选，也可自定义">
       {() => (
@@ -104,8 +124,8 @@ function ContextChoiceField({
           <TagInput
             values={custom}
             onChange={(next) => update([...values.filter((value) => presets.includes(value)), ...next])}
-            placeholder="自定义后回车…"
-            ariaLabel={`${label}自定义值`}
+            placeholder="添加自定义项后回车…"
+            ariaLabel={`${label} 自定义值`}
           />
         </div>
       )}
@@ -113,39 +133,22 @@ function ContextChoiceField({
   );
 }
 
-/**
- * The full deterministic research configuration (regions, users, horizon,
- * price, constraints, candidate count, evaluation weights). Extracted so it can
- * live inside the Deep Research home's collapsible "advanced settings" area.
- */
 export function AdvancedResearchSettings({
   brief,
   options,
   onChange,
 }: AdvancedResearchSettingsProps) {
   const coverage = useKnowledgeCoverage(brief.regions);
-  const presetRegions = options.regions;
-  const customRegions = useMemo(
-    () => brief.regions.filter((region) => !presetRegions.includes(region)),
-    [brief.regions, presetRegions],
-  );
 
   const weightPct = (key: (typeof SCORE_DIMENSIONS)[number]) =>
     Math.round((brief.weights[key] || 0) * 100);
   const weightTotal = SCORE_DIMENSIONS.reduce((sum, key) => sum + weightPct(key), 0);
   const weightsOk = areWeightsValid(brief.weights);
 
-  const toggleRegion = (region: string) => {
-    const next = brief.regions.includes(region)
-      ? brief.regions.filter((item) => item !== region)
-      : [...brief.regions, region];
-    onChange({ regions: next });
-  };
-
   return (
-    <div className="stack stack-5">
+    <div className="advanced-settings stack">
       <div className="form-grid">
-        <Field label="品类 Category" required>
+        <Field label="品类" required>
           {(aria) => (
             <input
               {...aria}
@@ -157,8 +160,8 @@ export function AdvancedResearchSettings({
         </Field>
 
         <Field
-          label="预测周期（年）"
-          hint={`范围 ${options.forecast_horizon_years.minimum}–${options.forecast_horizon_years.maximum} 年`}
+          label="预测周期"
+          hint={`范围 ${options.forecast_horizon_years.minimum}-${options.forecast_horizon_years.maximum} 年`}
         >
           {(aria) => (
             <div className="row row-gap-3">
@@ -181,37 +184,22 @@ export function AdvancedResearchSettings({
         </Field>
       </div>
 
-      <Field label="地区 Regions" required>
-        {() => (
+      <Field label="地区" required>
+        {(aria) => (
           <div className="stack stack-3">
-            <div className="optiongrid">
-              {presetRegions.map((region) => (
-                <button
-                  key={region}
-                  type="button"
-                  className={`option-pill ${brief.regions.includes(region) ? "is-on" : ""}`}
-                  aria-pressed={brief.regions.includes(region)}
-                  onClick={() => toggleRegion(region)}
-                >
-                  {region}
-                </button>
-              ))}
-            </div>
-            {options.custom_regions_allowed && (
-              <TagInput
-                values={customRegions}
-                onChange={(next) =>
-                  onChange({
-                    regions: [
-                      ...brief.regions.filter((region) => presetRegions.includes(region)),
-                      ...next,
-                    ],
-                  })
-                }
-                placeholder="添加自定义地区后回车…"
-                ariaLabel="自定义地区"
-              />
-            )}
+            <MultiSelectCombobox
+              id={aria.id}
+              ariaLabel="地区"
+              ariaDescribedby={aria["aria-describedby"]}
+              options={options.regions}
+              values={brief.regions}
+              onChange={(next) => onChange({ regions: next })}
+              formatOptionLabel={formatRegionLabel}
+              placeholder="搜索或选择地区…"
+              allowCustom={options.custom_regions_allowed}
+              emptyText="没有匹配的地区"
+            />
+
             {coverage.data && brief.regions.length > 0 && (
               <div className="row wrap row-gap-2" aria-label="地区知识覆盖度">
                 {coverage.data.regions.map((item) => (
@@ -226,7 +214,7 @@ export function AdvancedResearchSettings({
                     key={item.region}
                     title={`${item.verified_records} 条已验证资料，${item.hypothesis_records} 条待验证假设`}
                   >
-                    {item.region} ·{" "}
+                    {formatRegionLabel(item.region)} ·{" "}
                     {item.level === "strong"
                       ? "资料充分"
                       : item.level === "moderate"
@@ -241,7 +229,7 @@ export function AdvancedResearchSettings({
       </Field>
 
       <div className="form-grid">
-        <Field label="目标用户 Target Users" required>
+        <Field label="目标用户" required>
           {(aria) => (
             <TagInput
               values={brief.target_users}
@@ -253,7 +241,7 @@ export function AdvancedResearchSettings({
           )}
         </Field>
 
-        <Field label="价格带 Price Segment" hint="可选，例如 中高端 / Premium">
+        <Field label="价格带" hint="可选，例如 中高端 / Premium">
           {(aria) => (
             <input
               {...aria}
@@ -266,25 +254,26 @@ export function AdvancedResearchSettings({
         </Field>
       </div>
 
-      <Field label="限制条件 Constraints" hint="可选：合规、隐私、成本等约束">
+      <Field label="限制条件" hint="可选：合规、隐私、成本等约束">
         {(aria) => (
           <TagInput
             values={brief.constraints}
             onChange={(next) => onChange({ constraints: next })}
-            placeholder="输入约束条件后回车…"
+            placeholder="输入限制条件后回车…"
             id={aria.id}
             ariaLabel="限制条件"
           />
         )}
       </Field>
 
-      <div className="stack stack-4">
-        <div className="stack" style={{ gap: 2 }}>
-          <span className="field-label">详细研究上下文 Research Context</span>
+      <div className="advanced-context stack stack-4">
+        <div className="advanced-context-head stack">
+          <span className="field-label">详细研究上下文</span>
           <span className="subtle" style={{ fontSize: "var(--text-xs)" }}>
             这些结构化信息会参与本地 RAG 检索，并传给预测、审议、竞品与产品定义 Agent；留空表示开放探索。
           </span>
         </div>
+
         {CONTEXT_FIELDS.map(({ key, label }) => (
           <ContextChoiceField
             key={key}
@@ -295,6 +284,7 @@ export function AdvancedResearchSettings({
             onChange={onChange}
           />
         ))}
+
         <Field label="创新尺度" hint="单选；决定候选组合偏量产还是探索">
           {() => (
             <div className="optiongrid">
@@ -324,7 +314,7 @@ export function AdvancedResearchSettings({
 
       <Field
         label="候选产品数量"
-        hint={`范围 ${options.candidate_count.minimum}–${options.candidate_count.maximum} 个`}
+        hint={`范围 ${options.candidate_count.minimum}-${options.candidate_count.maximum} 个`}
       >
         {(aria) => (
           <div className="row row-gap-3">
@@ -350,6 +340,7 @@ export function AdvancedResearchSettings({
             <Layers size={15} aria-hidden="true" /> 评估权重（总和须为 100%）
           </span>
         </div>
+
         {SCORE_DIMENSIONS.map((dimension) => (
           <div className="weight-row" key={dimension}>
             <span className="weight-name">{DIMENSION_LABELS[dimension]}</span>
@@ -370,10 +361,11 @@ export function AdvancedResearchSettings({
             <span className="weight-pct">{weightPct(dimension)}%</span>
           </div>
         ))}
+
         <div className={`weight-total ${weightsOk ? "is-ok" : "is-bad"}`}>
           <span>权重总和：{weightTotal}%</span>
           {weightsOk ? (
-            <span>已归一化 ✓</span>
+            <span>已归一化为 100%</span>
           ) : (
             <button
               type="button"

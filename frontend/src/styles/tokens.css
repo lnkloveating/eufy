@@ -1,77 +1,77 @@
 /* ============================================================
-   eufy FutureLab — Design Tokens
-   Enterprise, future-facing, restrained. Light workspace with a
-   deep navy navigation rail. Accent = eufy cyan-teal.
+   eufy FutureLab - Design Tokens
+   Vercel-inspired: monochrome surfaces, tight typography,
+   subtle depth, minimal accent usage.
    ============================================================ */
 
 :root {
   /* --- Neutrals / ink --- */
-  --navy-950: #070c17;
-  --navy-900: #0b1220;
-  --navy-850: #0f1829;
-  --navy-800: #142033;
-  --navy-700: #1e2c45;
-  --navy-600: #2a3a58;
+  --navy-950: #050505;
+  --navy-900: #0a0a0a;
+  --navy-850: #111111;
+  --navy-800: #171717;
+  --navy-700: #222222;
+  --navy-600: #2f2f2f;
 
-  --ink-900: #0f172a;
-  --ink-800: #1e293b;
-  --ink-700: #334155;
-  --ink-600: #475569;
-  --ink-500: #64748b;
-  --ink-400: #94a3b8;
-  --ink-300: #cbd5e1;
+  --ink-900: #0a0a0a;
+  --ink-800: #171717;
+  --ink-700: #262626;
+  --ink-600: #404040;
+  --ink-500: #525252;
+  --ink-400: #737373;
+  --ink-300: #a3a3a3;
 
-  --line: #e5e9f0;
-  --line-strong: #d3dae6;
+  --line: #ebebeb;
+  --line-strong: #dcdcdc;
 
-  --surface: #ffffff;
-  --surface-2: #f7f9fc;
-  --surface-3: #eef2f8;
-  --surface-inset: #f1f5f9;
+  --surface: rgba(255, 255, 255, 0.9);
+  --surface-2: #fafafa;
+  --surface-3: #f5f5f5;
+  --surface-inset: #f3f3f3;
 
-  /* --- Brand accent (eufy cyan-teal) --- */
-  --accent: #0bb5c9;
-  --accent-strong: #0891a6;
-  --accent-deep: #0b6b7d;
-  --accent-soft: #e2f8fb;
-  --accent-softer: #f0fcfd;
-  --accent-ring: rgba(11, 181, 201, 0.32);
+  /* --- Accent --- */
+  --accent: #111111;
+  --accent-strong: #000000;
+  --accent-deep: #000000;
+  --accent-soft: #f1f1f1;
+  --accent-softer: #fafafa;
+  --accent-ring: rgba(0, 0, 0, 0.08);
 
   /* --- Status --- */
-  --success: #10b981;
-  --success-bright: #34d97a; /* restrained fluorescent green */
-  --success-soft: #e7f9ef;
-  --success-ink: #058255;
+  --success: #0f9f62;
+  --success-bright: #16a34a;
+  --success-soft: #ecfdf3;
+  --success-ink: #11663f;
 
-  --warn: #d97706;
-  --warn-soft: #fdf1dd;
-  --warn-ink: #9a5b04;
+  --warn: #c67a11;
+  --warn-soft: #fff7e8;
+  --warn-ink: #8c4f05;
 
-  --danger: #e11d48;
-  --danger-soft: #fde7ec;
-  --danger-ink: #b0122f;
+  --danger: #d84b52;
+  --danger-soft: #fff1f2;
+  --danger-ink: #9f2230;
 
   --info: #2563eb;
-  --info-soft: #e6efff;
-  --info-ink: #1a49b8;
+  --info-soft: #eff6ff;
+  --info-ink: #1d4ed8;
 
-  --violet: #7c5cff;
-  --violet-soft: #efeaff;
+  --violet: #6d5efc;
+  --violet-soft: #f2efff;
 
   /* --- Radii --- */
-  --radius-xs: 6px;
+  --radius-xs: 8px;
   --radius-sm: 8px;
-  --radius: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 22px;
+  --radius: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
   --radius-pill: 999px;
 
-  /* --- Shadows (soft, layered) --- */
-  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 4px 14px rgba(15, 23, 42, 0.08), 0 2px 5px rgba(15, 23, 42, 0.05);
-  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.12), 0 4px 10px rgba(15, 23, 42, 0.06);
-  --shadow-accent: 0 8px 24px rgba(11, 181, 201, 0.24);
+  /* --- Shadows (restrained) --- */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 24px rgba(0, 0, 0, 0.02);
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.04), 0 18px 44px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 1px 2px rgba(0, 0, 0, 0.05), 0 24px 72px rgba(0, 0, 0, 0.06);
+  --shadow-accent: 0 10px 30px rgba(0, 0, 0, 0.08);
 
   /* --- Spacing scale --- */
   --space-1: 4px;
@@ -86,9 +86,9 @@
   --space-16: 64px;
 
   /* --- Typography --- */
-  --font-sans: "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei",
+  --font-sans: "GeistSans", "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei",
     "Hiragino Sans GB", system-ui, -apple-system, sans-serif;
-  --font-mono: "SFMono-Regular", "JetBrains Mono", "Cascadia Code", Consolas,
+  --font-mono: "GeistMono", "SFMono-Regular", "JetBrains Mono", "Cascadia Code", Consolas,
     "Liberation Mono", monospace;
 
   --text-xs: 12px;
@@ -98,13 +98,14 @@
   --text-lg: 17px;
   --text-xl: 20px;
   --text-2xl: 24px;
-  --text-3xl: 30px;
+  --text-3xl: 32px;
 
   --lh-tight: 1.25;
   --lh-normal: 1.55;
 
   /* --- Layout --- */
-  --nav-width: 248px;
+  --nav-width: 260px;
+  --nav-width-collapsed: 80px;
   --content-max: 1360px;
   --header-h: 64px;
 

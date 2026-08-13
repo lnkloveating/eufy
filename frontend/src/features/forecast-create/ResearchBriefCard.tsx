@@ -38,7 +38,7 @@ export function ResearchBriefCard({
         >
           <Target size={18} aria-hidden="true" />
         </span>
-        <div className="stack" style={{ gap: 2 }}>
+        <div className="stack stack-micro">
           <span className="eyebrow">
             研究任务确认 Research Brief · 信息完整度 {getBriefCompleteness(brief)}%
           </span>

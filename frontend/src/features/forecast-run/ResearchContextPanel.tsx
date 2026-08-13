@@ -44,7 +44,7 @@ export function ResearchContextPanel({ request }: { request: ForecastRequest }) 
       <div className="card card-pad stack stack-4">
         <div className="row row-gap-3">
           <ClipboardCheck size={19} style={{ color: "var(--accent)" }} aria-hidden="true" />
-          <div className="stack" style={{ gap: 2 }}>
+          <div className="stack stack-micro">
             <span className="eyebrow">Research Brief · 输入追溯</span>
             <strong>{request.question}</strong>
           </div>
@@ -61,7 +61,7 @@ export function ResearchContextPanel({ request }: { request: ForecastRequest }) 
       <div className="card card-pad stack stack-4">
         <div className="row row-gap-3">
           <Compass size={18} style={{ color: "var(--accent)" }} aria-hidden="true" />
-          <div className="stack" style={{ gap: 2 }}>
+          <div className="stack stack-micro">
             <strong>结构化研究上下文</strong>
             <span className="subtle" style={{ fontSize: "var(--text-sm)" }}>
               下列内容参与了 RAG 取证和所有 Agent 分析；未出现的字段按“未知 / 开放探索”处理。
