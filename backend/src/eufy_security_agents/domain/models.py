@@ -39,12 +39,73 @@ class ClaimStatus(StrEnum):
     HYPOTHESIS = "hypothesis"
 
 
+class NoveltyClassification(StrEnum):
+    EXISTING_EQUIVALENT = "existing_equivalent"
+    FEATURE_EXTENSION = "feature_extension"
+    ADJACENT_INNOVATION = "adjacent_innovation"
+    NEW_PRODUCT_CATEGORY = "new_product_category"
+
+
+class InnovationVector(StrEnum):
+    NEW_SENSING = "new_sensing"
+    PROACTIVE_INTERVENTION = "proactive_intervention"
+    DISTRIBUTED_ARCHITECTURE = "distributed_architecture"
+    RESILIENCE_RECOVERY = "resilience_recovery"
+    TRUST_PRIVACY = "trust_privacy"
+    HUMAN_AI_COORDINATION = "human_ai_coordination"
+    NEW_BUSINESS_DELIVERY = "new_business_delivery"
+
+
+class StrategyProfile(StrEnum):
+    """Named product-prediction strategy the user selected before a run.
+
+    ``custom`` means the user hand-tuned the weight sliders. The profile is only
+    a label describing the user's intent; ``ScoreWeights`` remains the single
+    authoritative execution value everywhere in the pipeline.
+    """
+
+    BALANCED = "balanced"
+    BREAKTHROUGH = "breakthrough"
+    VALUE = "value"
+    ECOSYSTEM = "ecosystem"
+    CUSTOM = "custom"
+
+
 class ScoreWeights(BaseModel):
-    innovation: float = 0.30
-    user_value: float = 0.25
-    business_value: float = 0.20
+    """Six evaluation weights that must sum to 1.0.
+
+    ``cost_effectiveness`` (性价比) is deliberately separate from
+    ``business_value``: business_value looks at market size, margin, revenue
+    model, channels and moats, while cost_effectiveness looks at the price a
+    household pays, hardware/maintenance/install cost, subscription burden and
+    the real value received for that spend.
+
+    Backward compatibility: historical runs persisted five weights that already
+    summed to 1.0. A ``mode="before"`` step detects a legacy weights mapping
+    (any weight supplied but ``cost_effectiveness`` absent) and fills
+    ``cost_effectiveness`` with 0.0 so the legacy total stays 1.0. A request that
+    omits weights entirely falls back to the six-dimension balanced default.
+    """
+
+    innovation: float = 0.25
+    user_value: float = 0.20
+    business_value: float = 0.15
+    cost_effectiveness: float = 0.15
     feasibility: float = 0.15
     eufy_synergy: float = 0.10
+
+    @model_validator(mode="before")
+    @classmethod
+    def backfill_legacy_cost_effectiveness(cls, data: Any) -> Any:
+        """Keep pre-cost_effectiveness five-weight payloads valid."""
+        if isinstance(data, dict) and data:
+            # Only treat as legacy when at least one weight was explicitly
+            # provided but cost_effectiveness is missing. An empty mapping keeps
+            # the new six-dimension default (which already sums to 1.0).
+            has_any_weight = any(field in data for field in cls.model_fields)
+            if has_any_weight and "cost_effectiveness" not in data:
+                data = {**data, "cost_effectiveness": 0.0}
+        return data
 
     @model_validator(mode="after")
     def validate_total(self) -> ScoreWeights:
@@ -112,6 +173,7 @@ class ForecastRequest(BaseModel):
     constraints: list[str] = Field(default_factory=list)
     research_context: ResearchContext = Field(default_factory=ResearchContext)
     candidate_count: Annotated[int, Field(ge=3, le=10)] = 6
+    strategy_profile: StrategyProfile = StrategyProfile.BALANCED
     weights: ScoreWeights = Field(default_factory=ScoreWeights)
 
     @model_validator(mode="after")
@@ -212,6 +274,12 @@ class RetrievalPlan(BaseModel):
     selected_evidence_ids: list[str]
     selection_reasons: dict[str, list[str]]
     explanation: str
+    # Strategy explainability. Defaulted so historical retrieval-plan artifacts
+    # that predate the strategy feature still deserialize.
+    strategy_profile: StrategyProfile = StrategyProfile.BALANCED
+    strategy_adjustments: dict[str, int] = Field(default_factory=dict)
+    strategy_topics: list[str] = Field(default_factory=list)
+    strategy_explanation: str = ""
 
 
 class RetrievalPreview(BaseModel):
@@ -392,6 +460,108 @@ class RegionalFit(BaseModel):
     confidence: Annotated[float, Field(ge=0, le=1)]
 
 
+VALID_SCORE_DIMENSIONS = frozenset(ScoreWeights.model_fields)
+
+
+class StrategyAlignment(BaseModel):
+    """How a candidate answers the user's prediction strategy.
+
+    Explainable, never a fabricated score. ``aligned_dimensions`` may only use
+    the six valid scoring dimensions. Defaulted empty so historical candidates
+    without this field still deserialize.
+    """
+
+    aligned_dimensions: list[str] = Field(default_factory=list)
+    rationale: str = ""
+    tradeoffs: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_dimensions(self) -> StrategyAlignment:
+        self.aligned_dimensions = [
+            dimension
+            for dimension in dict.fromkeys(self.aligned_dimensions)
+            if dimension in VALID_SCORE_DIMENSIONS
+        ]
+        return self
+
+
+class CapabilityDelta(BaseModel):
+    """Explicit difference between a candidate and products available today."""
+
+    today_equivalents: list[str] = Field(default_factory=list)
+    new_capabilities: list[str] = Field(default_factory=list)
+    why_not_available_today: str = ""
+    enabling_changes: list[str] = Field(default_factory=list)
+    proof_needed: list[str] = Field(default_factory=list)
+    hardware_or_system_delta: str = ""
+    innovation_vector: InnovationVector = InnovationVector.NEW_SENSING
+
+
+class CurrentCapability(BaseModel):
+    id: str
+    capability: str
+    existing_products: list[str]
+    form_factors: list[str]
+    evidence_ids: list[str] = Field(
+        description="Only EV-* IDs from the current eufy evidence supplied to the auditor."
+    )
+
+
+class CurrentCapabilityBaseline(BaseModel):
+    summary: str
+    capabilities: list[CurrentCapability] = Field(min_length=3, max_length=20)
+    combination_warning_signs: list[str] = Field(default_factory=list)
+
+
+class CandidateNoveltyAssessment(BaseModel):
+    candidate_id: str
+    classification: NoveltyClassification
+    overlap_ratio: Annotated[float, Field(ge=0, le=1)]
+    overlapping_capability_ids: list[str]
+    genuinely_new_capabilities: list[str]
+    why_not_available_today_is_credible: bool
+    hardware_or_system_delta_is_meaningful: bool
+    innovation_vector_is_credible: bool
+    reasons: list[str]
+    regeneration_brief: str
+    passes_gate: bool = False
+
+
+class NoveltyAudit(BaseModel):
+    assessments: list[CandidateNoveltyAssessment]
+    requested_candidate_count: int | None = None
+    returned_candidate_count: int | None = None
+    regeneration_rounds: int = 0
+    rescue_rounds: int = 0
+    dropped_candidate_ids: list[str] = Field(default_factory=list)
+
+
+class CandidatePairSimilarity(BaseModel):
+    """Semantic overlap between two candidates in the same portfolio."""
+
+    candidate_a_id: str
+    candidate_b_id: str
+    similarity_score: Annotated[float, Field(ge=0, le=1)]
+    shared_user_jobs: list[str] = Field(default_factory=list)
+    shared_product_mechanisms: list[str] = Field(default_factory=list)
+    meaningful_differences: list[str] = Field(default_factory=list)
+    duplicate: bool
+    preferred_candidate_id: str
+    regenerate_candidate_id: str
+    regeneration_brief: str
+
+
+class PortfolioDiversityAudit(BaseModel):
+    """Final pairwise audit plus an auditable record of portfolio regeneration."""
+
+    pair_assessments: list[CandidatePairSimilarity]
+    regeneration_rounds: int = 0
+    regenerated_candidate_ids: list[str] = Field(default_factory=list)
+    degraded: bool = False
+    dropped_candidate_ids: list[str] = Field(default_factory=list)
+    unresolved_duplicate_pairs: list[list[str]] = Field(default_factory=list)
+
+
 class ProductCandidate(BaseModel):
     id: str
     name: str
@@ -417,6 +587,8 @@ class ProductCandidate(BaseModel):
     )
     regional_fit: list[RegionalFit] = Field(default_factory=list)
     competitive_positioning: CompetitivePositioning = Field(default_factory=CompetitivePositioning)
+    strategy_alignment: StrategyAlignment = Field(default_factory=StrategyAlignment)
+    capability_delta: CapabilityDelta = Field(default_factory=CapabilityDelta)
 
 
 class CandidateReview(BaseModel):
@@ -488,6 +660,7 @@ class ProductSpec(BaseModel):
     validation_readiness: list[ValidationHypothesis]
     regional_fit: list[RegionalFit] = Field(default_factory=list)
     competitive_positioning: CompetitivePositioning = Field(default_factory=CompetitivePositioning)
+    capability_delta: CapabilityDelta = Field(default_factory=CapabilityDelta)
     human_selection_reason: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -539,6 +712,10 @@ class ForecastResult(BaseModel):
     opportunities: list[Opportunity]
     competitor_evidence: list[CompetitorRecord]
     competitive_analysis: CompetitiveAnalysis | None = None
+    current_capability_evidence: list[EvidenceRecord] = Field(default_factory=list)
+    current_capability_baseline: CurrentCapabilityBaseline | None = None
+    novelty_audit: NoveltyAudit | None = None
+    portfolio_diversity_audit: PortfolioDiversityAudit | None = None
     candidates: list[RankedCandidate]
 
 
@@ -574,6 +751,18 @@ class OpportunityEnvelope(BaseModel):
 
 class CompetitiveAnalysisEnvelope(BaseModel):
     analysis: CompetitiveAnalysis
+
+
+class CurrentCapabilityBaselineEnvelope(BaseModel):
+    baseline: CurrentCapabilityBaseline
+
+
+class NoveltyAuditEnvelope(BaseModel):
+    audit: NoveltyAudit
+
+
+class PortfolioDiversityAuditEnvelope(BaseModel):
+    audit: PortfolioDiversityAudit
 
 
 class CandidateEnvelope(BaseModel):

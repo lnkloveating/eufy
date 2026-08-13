@@ -2,13 +2,11 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
-  ChevronDown,
   ChevronRight,
   Database,
   History,
   Layers3,
   Radar,
-  Settings2,
   ShieldCheck,
   Swords,
 } from "lucide-react";
@@ -21,22 +19,20 @@ import { ErrorState } from "../../components/ErrorState/ErrorState";
 import { SkeletonText } from "../../components/LoadingSkeleton/LoadingSkeleton";
 import { useToast } from "../../components/ui/Toast";
 import { ResearchPrompt } from "./ResearchPrompt";
-import { AdvancedResearchSettings } from "./AdvancedResearchSettings";
-import { ClarificationDialog } from "./ClarificationDialog";
-import { ResearchBriefCard } from "./ResearchBriefCard";
+import { ResearchSetupDialog } from "./ResearchSetupDialog";
 import {
-  applyClarificationAnswers,
   applyExamplePrompt,
   areWeightsValid,
   briefToRequest,
   createEmptyBrief,
-  getBriefCompleteness,
-  getMissingClarifications,
-  getMissingFields,
-  type ClarificationQuestion,
+  MIN_QUESTION_LENGTH,
   type ExamplePrompt,
   type ResearchBrief,
 } from "./researchBrief";
+import {
+  createEmptySupplementalSources,
+  type SupplementalResearchSources,
+} from "./supplementalSources";
 
 function StatusStrip({ health }: { health: HealthResponse | undefined }) {
   const online = Boolean(health);
@@ -96,15 +92,15 @@ function ResearchHomeInner({
   const recentRun = getRecentRun();
 
   const [brief, setBrief] = useState<ResearchBrief>(() => createEmptyBrief(options));
-  const [phase, setPhase] = useState<"compose" | "brief">("compose");
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [clarifyOpen, setClarifyOpen] = useState(false);
-  const [clarificationReviewed, setClarificationReviewed] = useState(false);
-  const [clarifyQuestions, setClarifyQuestions] = useState<ClarificationQuestion[]>([]);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [supplementalSources, setSupplementalSources] = useState<SupplementalResearchSources>(
+    createEmptySupplementalSources,
+  );
 
   const backendOnline = Boolean(health);
   const llmConfigured = health?.llm_configured ?? false;
   const weightsOk = areWeightsValid(brief.weights);
+  const canConfigure = brief.question.trim().length >= MIN_QUESTION_LENGTH;
   const canStart = backendOnline && llmConfigured && weightsOk && !createRun.isPending;
 
   const disabledReason = !backendOnline
@@ -112,33 +108,11 @@ function ResearchHomeInner({
     : !llmConfigured
       ? "LLM 未配置，请在后端环境变量中配置 API Key（前端永不接触密钥）"
       : !weightsOk
-        ? "评估权重需在高级设置中归一化为 100%"
+        ? "评估权重需归一化为 100%"
         : undefined;
 
   const patchBrief = (patch: Partial<ResearchBrief>) =>
     setBrief((prev) => ({ ...prev, ...patch }));
-
-  const handleStart = () => {
-    const missing = getMissingClarifications(brief, options);
-    if (getMissingFields(brief).length > 0 || (!clarificationReviewed && missing.length > 0)) {
-      setClarifyQuestions(missing);
-      setClarifyOpen(true);
-      return;
-    }
-    setPhase("brief");
-  };
-
-  const handleClarifyConfirm = (answers: Partial<Record<ClarificationQuestion["key"], string[]>>) => {
-    const next = applyClarificationAnswers(brief, answers);
-    setBrief(next);
-    if (getMissingFields(next).length > 0) {
-      setClarifyQuestions(getMissingClarifications(next, options));
-      return;
-    }
-    setClarificationReviewed(true);
-    setClarifyOpen(false);
-    setPhase("brief");
-  };
 
   const startResearch = async () => {
     try {
@@ -192,72 +166,35 @@ function ResearchHomeInner({
         </Link>
       )}
 
-      {phase === "compose" ? (
-        <>
-          <ResearchPrompt
-            question={brief.question}
-            onQuestionChange={(question) => patchBrief({ question })}
-            onPickExample={(example: ExamplePrompt) =>
-              setBrief((prev) => applyExamplePrompt(prev, example))
-            }
-            onStart={handleStart}
-            starting={createRun.isPending}
-            canStart={canStart}
-            disabledReason={disabledReason}
-          />
+      <ResearchPrompt
+        question={brief.question}
+        onQuestionChange={(question) => patchBrief({ question })}
+        onPickExample={(example: ExamplePrompt) =>
+          setBrief((prev) => applyExamplePrompt(prev, example))
+        }
+        onStart={() => setSetupOpen(true)}
+        starting={false}
+        canStart={canConfigure}
+        disabledReason={
+          canConfigure ? undefined : `请输入至少 ${MIN_QUESTION_LENGTH} 个字符的研究问题`
+        }
+      />
 
-          <div className="card">
-            <button
-              type="button"
-              className="advanced-toggle"
-              aria-expanded={showAdvanced}
-              onClick={() => setShowAdvanced((value) => !value)}
-            >
-                <span className="row row-gap-3">
-                <Settings2 size={17} aria-hidden="true" />
-                <span className="stack" style={{ gap: 0 }}>
-                  <span className="strong">高级研究设置</span>
-                  <span className="subtle" style={{ fontSize: "var(--text-xs)" }}>
-                    地区、目标用户、预测周期、价格、约束、候选数量与评估权重
-                  </span>
-                </span>
-                </span>
-              <span className="row row-gap-2">
-                <span className="chip chip-accent">Brief {getBriefCompleteness(brief)}%</span>
-                <ChevronDown
-                  size={18}
-                  aria-hidden="true"
-                  style={{
-                    transition: "transform 160ms",
-                    transform: showAdvanced ? "rotate(180deg)" : "none",
-                  }}
-                />
-              </span>
-            </button>
-            {showAdvanced && (
-              <div className="card-pad" style={{ borderTop: "1px solid var(--line)" }}>
-                <AdvancedResearchSettings brief={brief} options={options} onChange={patchBrief} />
-              </div>
-            )}
-          </div>
-        </>
-      ) : (
-        <ResearchBriefCard
-          brief={brief}
-          regionLabel={(region) => region}
-          onEdit={() => setPhase("compose")}
-          onStart={startResearch}
-          starting={createRun.isPending}
-          canStart={canStart}
-        />
-      )}
-
-      <ClarificationDialog
-        open={clarifyOpen}
-        questions={clarifyQuestions}
+      <ResearchSetupDialog
+        open={setupOpen}
         brief={brief}
-        onCancel={() => setClarifyOpen(false)}
-        onConfirm={handleClarifyConfirm}
+        options={options}
+        supplementalSources={supplementalSources}
+        onBriefChange={patchBrief}
+        onSupplementalSourcesChange={setSupplementalSources}
+        onClose={() => setSetupOpen(false)}
+        onStart={startResearch}
+        onAutoResearchUnavailable={() =>
+          toast.info("自动补充公开资料暂未启用", "当前研究继续使用本地知识快照。")
+        }
+        starting={createRun.isPending}
+        canStart={canStart}
+        disabledReason={disabledReason}
       />
     </div>
   );

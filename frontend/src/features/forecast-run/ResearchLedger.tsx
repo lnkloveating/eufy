@@ -55,16 +55,16 @@ export function ResearchLedger({ artifacts, events, active }: ResearchLedgerProp
   const metrics = aggregateArtifactMetrics(artifacts);
   const counts = deriveLedgerCounts(artifacts);
 
-  const started = new Set<string>();
-  const completed = new Set<string>();
+  const latest = new Map<string, "running" | "done">();
   for (const event of events) {
     if (!event.agent) continue;
     if (event.event_type === "agent_started" || event.event_type === "product_definition_started") {
-      started.add(event.agent);
+      latest.set(event.agent, "running");
     }
-    if (COMPLETED_EVENTS.has(event.event_type)) completed.add(event.agent);
+    if (COMPLETED_EVENTS.has(event.event_type)) latest.set(event.agent, "done");
   }
-  const inFlight = [...started].filter((agent) => !completed.has(agent));
+  const inFlight = [...latest].filter(([, status]) => status === "running");
+  const completedCount = [...latest.values()].filter((status) => status === "done").length;
   const computing = active && inFlight.length > 0;
 
   return (
@@ -91,7 +91,7 @@ export function ResearchLedger({ artifacts, events, active }: ResearchLedgerProp
           <AnimatedValue value={counts.competitorCount} />
         </LedgerRow>
         <LedgerRow icon={<Cpu size={13} aria-hidden="true" />} label="已完成 Agent">
-          <AnimatedValue value={completed.size} />
+          <AnimatedValue value={completedCount} />
         </LedgerRow>
         <LedgerRow icon={<MapIcon size={13} aria-hidden="true" />} label="机会">
           <AnimatedValue value={counts.opportunityCount} />

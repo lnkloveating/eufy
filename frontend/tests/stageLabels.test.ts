@@ -10,7 +10,9 @@ describe("stage label mapping", () => {
     expect(getStageLabel("consensus_formation")).toBe("共识与分歧");
     expect(getStageLabel("opportunity_synthesis")).toBe("未来机会聚合");
     expect(getStageLabel("competitor_analysis")).toBe("竞品空白分析");
+    expect(getStageLabel("current_capability_audit")).toBe("当前能力基线");
     expect(getStageLabel("candidate_generation")).toBe("候选产品生成");
+    expect(getStageLabel("novelty_audit")).toBe("创新查重门槛");
     expect(getStageLabel("candidate_review")).toBe("多维盲评");
     expect(getStageLabel("awaiting_product_selection")).toBe("等待人工选择");
     expect(getStageLabel("failed")).toBe("执行失败");
@@ -24,9 +26,12 @@ describe("stage label mapping", () => {
     expect(STAGE_ORDER[0]?.key).toBe("queued");
     expect(stageIndex("queued")).toBe(0);
     expect(stageIndex("competitor_analysis")).toBe(6);
-    expect(stageIndex("candidate_generation")).toBe(7);
-    expect(stageIndex("candidate_review")).toBe(8);
-    expect(stageIndex("awaiting_product_selection")).toBe(9);
+    expect(stageIndex("current_capability_audit")).toBe(7);
+    expect(stageIndex("candidate_generation")).toBe(8);
+    expect(stageIndex("novelty_audit")).toBe(9);
+    expect(stageIndex("portfolio_diversity_audit")).toBe(10);
+    expect(stageIndex("candidate_review")).toBe(11);
+    expect(stageIndex("awaiting_product_selection")).toBe(12);
   });
 
   it("returns -1 for stages outside the healthy pipeline", () => {

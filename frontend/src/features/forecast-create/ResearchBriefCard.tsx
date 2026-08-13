@@ -1,6 +1,10 @@
-import { ArrowRight, Pencil, Rocket, Target } from "lucide-react";
+import { ArrowRight, Compass, Pencil, Rocket, Target } from "lucide-react";
+import { SCORE_DIMENSIONS } from "../../types/api";
+import { DIMENSION_LABELS } from "../../lib/agentLabels";
+import { describeStrategy, getStrategyLabel, dominantSummary } from "../../lib/strategy";
 import { Button } from "../../components/ui/Button";
-import { describeBrief, getBriefCompleteness, type ResearchBrief } from "./researchBrief";
+import { describeBrief, type ResearchBrief } from "./researchBrief";
+import type { SupplementalResearchSources } from "./supplementalSources";
 
 export interface ResearchBriefCardProps {
   brief: ResearchBrief;
@@ -9,6 +13,8 @@ export interface ResearchBriefCardProps {
   onStart: () => void;
   starting: boolean;
   canStart: boolean;
+  supplementalSources?: SupplementalResearchSources;
+  embedded?: boolean;
 }
 
 function Fact({ label, value }: { label: string; value: string }) {
@@ -28,7 +34,13 @@ export function ResearchBriefCard({
   onStart,
   starting,
   canStart,
+  supplementalSources,
+  embedded = false,
 }: ResearchBriefCardProps) {
+  const supplementalItems = [
+    ...(supplementalSources?.enterpriseSources ?? []),
+    ...(supplementalSources?.focusSources ?? []),
+  ];
   return (
     <div className="card card-pad stack stack-5">
       <div className="row row-gap-3">
@@ -39,9 +51,7 @@ export function ResearchBriefCard({
           <Target size={18} aria-hidden="true" />
         </span>
         <div className="stack" style={{ gap: 2 }}>
-          <span className="eyebrow">
-            研究任务确认 Research Brief · 信息完整度 {getBriefCompleteness(brief)}%
-          </span>
+          <span className="eyebrow">研究任务确认 Research Brief</span>
           <strong style={{ fontSize: "var(--text-lg)" }}>
             {describeBrief(brief, regionLabel)}
           </strong>
@@ -97,7 +107,43 @@ export function ResearchBriefCard({
         />
       </div>
 
-      <div className="row between wrap row-gap-3">
+      <div className="card" style={{ padding: "var(--space-4)", background: "var(--surface-2)" }}>
+        <div className="row row-gap-3" style={{ marginBottom: "var(--space-3)" }}>
+          <Compass size={17} style={{ color: "var(--accent)", flexShrink: 0 }} aria-hidden="true" />
+          <div className="stack" style={{ gap: 2, minWidth: 0 }}>
+            <span className="eyebrow">
+              产品预测偏好 · {getStrategyLabel(brief.strategy_profile)}
+            </span>
+            <span className="strong">{dominantSummary(brief.weights)}</span>
+          </div>
+        </div>
+        <div className="row wrap row-gap-2" aria-label="六维评估权重">
+          {SCORE_DIMENSIONS.map((dimension) => (
+            <span className="chip chip-outline" key={dimension} style={{ fontSize: "var(--text-xs)" }}>
+              {DIMENSION_LABELS[dimension]} {Math.round((brief.weights[dimension] ?? 0) * 100)}%
+            </span>
+          ))}
+        </div>
+        <p className="subtle" style={{ fontSize: "var(--text-sm)", marginTop: "var(--space-3)" }}>
+          {describeStrategy(brief.strategy_profile, brief.weights)}
+        </p>
+      </div>
+
+      {supplementalItems.length > 0 && (
+        <div className="card" style={{ padding: "var(--space-4)", background: "var(--surface-2)" }}>
+          <span className="meta-label">补充研究资料</span>
+          <div className="row wrap row-gap-2" style={{ marginTop: "var(--space-2)" }}>
+            {(supplementalSources?.enterpriseSources ?? []).map((source) => (
+              <span className="chip chip-outline" key={source.id}>企业数据 · {source.name}</span>
+            ))}
+            {(supplementalSources?.focusSources ?? []).map((source) => (
+              <span className="chip chip-outline" key={source.id}>重点资源 · {source.name}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!embedded && <div className="row between wrap row-gap-3">
         <Button variant="secondary" onClick={onEdit} iconStart={<Pencil size={15} aria-hidden="true" />}>
           修改研究条件
         </Button>
@@ -112,7 +158,7 @@ export function ResearchBriefCard({
         >
           {starting ? "正在启动深度研究…" : "开始深度研究"}
         </Button>
-      </div>
+      </div>}
     </div>
   );
 }

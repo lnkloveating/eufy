@@ -27,6 +27,7 @@ export const SCORE_DIMENSIONS = [
   "innovation",
   "user_value",
   "business_value",
+  "cost_effectiveness",
   "feasibility",
   "eufy_synergy",
 ] as const;
@@ -34,6 +35,22 @@ export const SCORE_DIMENSIONS = [
 export type ScoreDimension = (typeof SCORE_DIMENSIONS)[number];
 
 export type ScoreWeights = Record<ScoreDimension, number>;
+
+/** Named strategy the user chose; `custom` means hand-tuned sliders. */
+export type StrategyProfile =
+  | "balanced"
+  | "breakthrough"
+  | "value"
+  | "ecosystem"
+  | "custom";
+
+/** Backend-authored preset (weights are never re-derived on the frontend). */
+export interface StrategyPreset {
+  id: Exclude<StrategyProfile, "custom">;
+  label: string;
+  description: string;
+  weights: ScoreWeights;
+}
 
 export interface ResearchContext {
   housing_types: string[];
@@ -61,6 +78,7 @@ export interface ForecastRequest {
   constraints: string[];
   research_context: ResearchContext;
   candidate_count: number;
+  strategy_profile: StrategyProfile;
   weights: ScoreWeights;
 }
 
@@ -114,6 +132,11 @@ export interface RetrievalPlan {
   selected_evidence_ids: string[];
   selection_reasons: Record<string, string[]>;
   explanation: string;
+  /** Strategy explainability. Optional so pre-strategy plans still parse. */
+  strategy_profile?: StrategyProfile;
+  strategy_adjustments?: Record<string, number>;
+  strategy_topics?: string[];
+  strategy_explanation?: string;
 }
 
 export interface RetrievalPreview {
@@ -274,6 +297,95 @@ export interface RegionalFit {
   confidence: number;
 }
 
+/** How a candidate answers the user's prediction strategy (explainable, no fabricated scores). */
+export interface StrategyAlignment {
+  aligned_dimensions: ScoreDimension[];
+  rationale: string;
+  tradeoffs: string[];
+}
+
+export type NoveltyClassification =
+  | "existing_equivalent"
+  | "feature_extension"
+  | "adjacent_innovation"
+  | "new_product_category";
+
+export interface CapabilityDelta {
+  today_equivalents: string[];
+  new_capabilities: string[];
+  why_not_available_today: string;
+  enabling_changes: string[];
+  proof_needed: string[];
+  hardware_or_system_delta: string;
+  innovation_vector:
+    | "new_sensing"
+    | "proactive_intervention"
+    | "distributed_architecture"
+    | "resilience_recovery"
+    | "trust_privacy"
+    | "human_ai_coordination"
+    | "new_business_delivery";
+}
+
+export interface CurrentCapability {
+  id: string;
+  capability: string;
+  existing_products: string[];
+  form_factors: string[];
+  evidence_ids: string[];
+}
+
+export interface CurrentCapabilityBaseline {
+  summary: string;
+  capabilities: CurrentCapability[];
+  combination_warning_signs: string[];
+}
+
+export interface CandidateNoveltyAssessment {
+  candidate_id: string;
+  classification: NoveltyClassification;
+  overlap_ratio: number;
+  overlapping_capability_ids: string[];
+  genuinely_new_capabilities: string[];
+  why_not_available_today_is_credible: boolean;
+  hardware_or_system_delta_is_meaningful: boolean;
+  innovation_vector_is_credible: boolean;
+  reasons: string[];
+  regeneration_brief: string;
+  passes_gate: boolean;
+}
+
+export interface NoveltyAudit {
+  assessments: CandidateNoveltyAssessment[];
+  requested_candidate_count?: number | null;
+  returned_candidate_count?: number | null;
+  regeneration_rounds?: number;
+  rescue_rounds?: number;
+  dropped_candidate_ids?: string[];
+}
+
+export interface CandidatePairSimilarity {
+  candidate_a_id: string;
+  candidate_b_id: string;
+  similarity_score: number;
+  shared_user_jobs: string[];
+  shared_product_mechanisms: string[];
+  meaningful_differences: string[];
+  duplicate: boolean;
+  preferred_candidate_id: string;
+  regenerate_candidate_id: string;
+  regeneration_brief: string;
+}
+
+export interface PortfolioDiversityAudit {
+  pair_assessments: CandidatePairSimilarity[];
+  regeneration_rounds: number;
+  regenerated_candidate_ids: string[];
+  degraded?: boolean;
+  dropped_candidate_ids?: string[];
+  unresolved_duplicate_pairs?: string[][];
+}
+
 export interface ProductCandidate {
   id: string;
   name: string;
@@ -295,6 +407,10 @@ export interface ProductCandidate {
   evidence_ids: string[];
   regional_fit: RegionalFit[];
   competitive_positioning: CompetitivePositioning;
+  /** Optional so historical candidates without strategy alignment still parse. */
+  strategy_alignment?: StrategyAlignment;
+  /** Optional for historical result compatibility. */
+  capability_delta?: CapabilityDelta;
 }
 
 export interface CandidateReview {
@@ -364,6 +480,7 @@ export interface ProductSpec {
   validation_readiness: ValidationHypothesis[];
   regional_fit: RegionalFit[];
   competitive_positioning: CompetitivePositioning;
+  capability_delta?: CapabilityDelta;
   human_selection_reason: string | null;
   created_at: string;
 }
@@ -406,6 +523,10 @@ export interface ForecastResult {
   opportunities: Opportunity[];
   competitor_evidence: CompetitorRecord[];
   competitive_analysis: CompetitiveAnalysis | null;
+  current_capability_evidence: EvidenceRecord[];
+  current_capability_baseline: CurrentCapabilityBaseline | null;
+  novelty_audit: NoveltyAudit | null;
+  portfolio_diversity_audit: PortfolioDiversityAudit | null;
   candidates: RankedCandidate[];
 }
 
@@ -450,4 +571,6 @@ export interface ForecastOptions {
     default: number;
   };
   default_weights: ScoreWeights;
+  default_strategy_profile: StrategyProfile;
+  strategy_presets: StrategyPreset[];
 }

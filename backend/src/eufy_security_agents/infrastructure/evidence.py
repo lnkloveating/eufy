@@ -15,6 +15,11 @@ from eufy_security_agents.domain.models import (
     RegionCoverage,
     RetrievalPlan,
 )
+from eufy_security_agents.domain.strategy import (
+    strategy_explanation,
+    strategy_layer_adjustments,
+    strategy_topic_boosts,
+)
 
 ALL_LAYERS = list(KnowledgeLayer)
 DEFAULT_LAYER_QUOTAS = {
@@ -118,11 +123,22 @@ class LocalEvidenceStore:
         )
         required_layers = list(ALL_LAYERS)
         quotas = {layer.value: quota for layer, quota in DEFAULT_LAYER_QUOTAS.items()}
+        # Strategy tilts quotas on top of the base (never below the base, so every
+        # one of the seven layers keeps its minimum), then region hard-routing is
+        # re-applied last to preserve its highest priority.
+        strategy_adjustments = strategy_layer_adjustments(request.weights)
+        for layer_value, delta in strategy_adjustments.items():
+            quotas[layer_value] = quotas.get(layer_value, 0) + delta
         if len(request.regions) > 1:
-            quotas[KnowledgeLayer.REGIONAL_MARKET.value] = min(12, 4 * len(request.regions))
-            quotas[KnowledgeLayer.PRIVACY_REGULATION.value] = min(6, 2 * len(request.regions))
+            quotas[KnowledgeLayer.REGIONAL_MARKET.value] = max(
+                quotas[KnowledgeLayer.REGIONAL_MARKET.value], min(12, 4 * len(request.regions))
+            )
+            quotas[KnowledgeLayer.PRIVACY_REGULATION.value] = max(
+                quotas[KnowledgeLayer.PRIVACY_REGULATION.value], min(6, 2 * len(request.regions))
+            )
         coverage = self.coverage(request.regions).regions
         fallback = any(item.level == "limited" for item in coverage)
+        strategy_topics = sorted(strategy_topic_boosts(request.weights))
         return RetrievalPlan(
             requested_regions=request.regions,
             query_topics=query_topics,
@@ -138,6 +154,10 @@ class LocalEvidenceStore:
                 "地区记录采用硬路由，全球记录作为共同基线；结构化 ResearchContext "
                 "参与主题识别与层内证据排序。"
             ),
+            strategy_profile=request.strategy_profile,
+            strategy_adjustments=strategy_adjustments,
+            strategy_topics=strategy_topics,
+            strategy_explanation=strategy_explanation(request.weights, request.strategy_profile),
         )
 
     def retrieve(self, request: ForecastRequest) -> tuple[RetrievalPlan, list[EvidenceRecord]]:
@@ -155,6 +175,7 @@ class LocalEvidenceStore:
             ]
         )
         query_tokens = _tokens(query_text)
+        strategy_topics = strategy_topic_boosts(request.weights)
         selected: list[EvidenceRecord] = []
         reasons: dict[str, list[str]] = {}
 
@@ -173,7 +194,11 @@ class LocalEvidenceStore:
             ranked = sorted(
                 candidates,
                 key=lambda record: self._score(
-                    record, requested_regions, query_tokens, set(plan.query_topics)
+                    record,
+                    requested_regions,
+                    query_tokens,
+                    set(plan.query_topics),
+                    strategy_topics,
                 ),
                 reverse=True,
             )
@@ -190,6 +215,9 @@ class LocalEvidenceStore:
                 matched_topics = sorted(set(record.topics) & set(plan.query_topics))
                 if matched_topics:
                     why.append(f"主题匹配：{', '.join(matched_topics)}")
+                strategy_matches = sorted(set(record.topics) & set(strategy_topics))
+                if strategy_matches:
+                    why.append(f"策略偏好：{', '.join(strategy_matches)}")
                 why.append(f"可信度：{record.credibility:.2f}")
                 reasons[record.id] = why
 
@@ -202,7 +230,11 @@ class LocalEvidenceStore:
                 record = max(
                     regional,
                     key=lambda item: self._score(
-                        item, requested_regions, query_tokens, set(plan.query_topics)
+                        item,
+                        requested_regions,
+                        query_tokens,
+                        set(plan.query_topics),
+                        strategy_topics,
                     ),
                 )
                 selected.append(record)
@@ -230,6 +262,7 @@ class LocalEvidenceStore:
         requested_regions: set[str],
         query_tokens: set[str],
         query_topics: set[str],
+        strategy_topics: dict[str, float] | None = None,
     ) -> float:
         region_overlap = set(record.regions) & requested_regions
         region_score = 12.0 if region_overlap else (3.0 if "Global" in record.regions else 0.0)
@@ -246,12 +279,19 @@ class LocalEvidenceStore:
             ClaimStatus.HYPOTHESIS: 0.5,
         }[claim_status]
         counter_score = 1.5 if record.contradicts else 0.0
+        # Strategy only reorders *within* a layer (max ~2.5 per matched topic),
+        # deliberately below the region hard-routing score so region priority
+        # always dominates.
+        strategy_score = 0.0
+        if strategy_topics:
+            strategy_score = 2.5 * sum(strategy_topics.get(topic, 0.0) for topic in record.topics)
         return (
             region_score
             + token_score
             + topic_score
             + status_score
             + counter_score
+            + strategy_score
             + 4 * record.credibility
         )
 

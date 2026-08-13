@@ -26,10 +26,14 @@ const AGENT_LABELS: Record<string, AgentDescriptor> = {
   "opportunity-synthesizer": { label: "机会聚合器", role: "Opportunity Synthesizer" },
   "local-competitor-store": { label: "本地竞品资料库", role: "Competitor Evidence" },
   "competitor-analysis": { label: "竞品分析师", role: "Competitive Intelligence" },
+  "current-product-auditor": { label: "当前产品审计 Agent", role: "Novelty Gate" },
+  "candidate-novelty-auditor": { label: "候选创新查重 Agent", role: "Novelty Gate" },
+  "portfolio-diversity-auditor": { label: "候选组合去重 Agent", role: "Portfolio Gate" },
   "product-architect": { label: "产品架构师", role: "Product Architect" },
   "reviewer-innovation": { label: "创新性评审", role: "盲评 Reviewer" },
   "reviewer-user_value": { label: "用户价值评审", role: "盲评 Reviewer" },
   "reviewer-business_value": { label: "商业价值评审", role: "盲评 Reviewer" },
+  "reviewer-cost_effectiveness": { label: "性价比评审", role: "盲评 Reviewer" },
   "reviewer-feasibility": { label: "可行性评审", role: "盲评 Reviewer" },
   "reviewer-eufy_synergy": { label: "eufy 协同性评审", role: "盲评 Reviewer" },
   "product-definition": { label: "产品定义 Agent", role: "Product Definition" },
@@ -59,11 +63,12 @@ export function getLensLabel(lens: string): string {
   return LENS_LABELS[lens] ?? lens;
 }
 
-/** The five scoring dimensions with their Chinese names. */
+/** The six scoring dimensions with their Chinese names. */
 export const DIMENSION_LABELS: Record<ScoreDimension, string> = {
   innovation: "创新性",
   user_value: "用户价值",
   business_value: "商业价值",
+  cost_effectiveness: "性价比",
   feasibility: "可行性",
   eufy_synergy: "eufy 协同性",
 };

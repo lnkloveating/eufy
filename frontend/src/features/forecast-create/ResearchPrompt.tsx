@@ -46,7 +46,7 @@ export function ResearchPrompt({
         />
         <div className="research-input-foot">
           <span className="subtle" style={{ fontSize: "var(--text-xs)" }}>
-            {disabledReason ? disabledReason : "按 ⌘/Ctrl + Enter 直接开始研究"}
+            {disabledReason ? disabledReason : "按 ⌘/Ctrl + Enter 进入研究配置"}
           </span>
           <Button
             variant="primary"

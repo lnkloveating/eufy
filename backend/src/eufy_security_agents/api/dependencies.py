@@ -17,6 +17,7 @@ llm = OpenAICompatibleLLM(
     model_name=settings.llm_model,
     timeout_seconds=settings.llm_timeout_seconds,
     max_retries=settings.llm_max_retries,
+    max_output_tokens=settings.llm_max_output_tokens,
 )
 workflow = ForecastWorkflow(
     repository=repository,

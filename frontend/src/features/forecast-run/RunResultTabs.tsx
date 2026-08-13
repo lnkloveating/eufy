@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Boxes, ClipboardList, Compass, Database, Layers3, Map as MapIcon, Scale, Swords } from "lucide-react";
+import { Boxes, ClipboardList, Compass, Database, Layers3, Map as MapIcon, Scale, ShieldCheck, Swords } from "lucide-react";
 import type { ForecastResult } from "../../types/api";
 import { Tabs, type TabItem } from "../../components/ui/Tabs";
 import { AgentInsights } from "./AgentInsights";
@@ -10,8 +10,10 @@ import { KnowledgePlanPanel } from "./KnowledgePlanPanel";
 import { CompetitiveAnalysisPanel } from "./CompetitiveAnalysisPanel";
 import { DeliberationPanel } from "./DeliberationPanel";
 import { ResearchContextPanel } from "./ResearchContextPanel";
+import { StrategyImpactPanel } from "./StrategyImpactPanel";
+import { NoveltyAuditPanel } from "./NoveltyAuditPanel";
 
-type TabKey = "brief" | "retrieval" | "insights" | "deliberation" | "opportunities" | "competition" | "candidates" | "evidence";
+type TabKey = "brief" | "retrieval" | "insights" | "deliberation" | "opportunities" | "competition" | "novelty" | "candidates" | "evidence";
 
 export interface RunResultTabsProps {
   runId: string;
@@ -53,6 +55,12 @@ export function RunResultTabs({ runId, result }: RunResultTabsProps) {
       icon: <Boxes size={15} aria-hidden="true" />,
     },
     {
+      key: "novelty",
+      label: "创新查重",
+      count: result.novelty_audit?.assessments.length,
+      icon: <ShieldCheck size={15} aria-hidden="true" />,
+    },
+    {
       key: "opportunities",
       label: "机会图谱",
       count: result.opportunities.length,
@@ -86,9 +94,23 @@ export function RunResultTabs({ runId, result }: RunResultTabsProps) {
           runId={runId}
           candidates={result.candidates}
           evidence={result.evidence}
+          noveltyAudit={result.novelty_audit}
         />
       )}
-      {active === "brief" && <ResearchContextPanel request={result.run.request} />}
+      {active === "brief" && (
+        <div className="stack stack-5">
+          <StrategyImpactPanel result={result} />
+          <ResearchContextPanel request={result.run.request} />
+        </div>
+      )}
+      {active === "novelty" && (
+        <NoveltyAuditPanel
+          baseline={result.current_capability_baseline}
+          audit={result.novelty_audit}
+          diversityAudit={result.portfolio_diversity_audit}
+          candidates={result.candidates}
+        />
+      )}
       {active === "retrieval" && (
         <KnowledgePlanPanel plan={result.retrieval_plan} evidence={result.evidence} />
       )}

@@ -19,12 +19,13 @@
 体验被重构为类似 Deep Research 的研究工作台流程：
 
 ```
-Research Home → Clarification → Research Brief 确认 → Live Research → Research Report
+Research Home → Research Setup（分步弹窗）→ Live Research → Research Report
 → 用户选择产品 → ProductSpec → Validation Lab（Coming Soon）
 ```
 
-- **Research Home（`/`）**：大型自然语言研究输入框 + 示例 Prompt 卡片 + 最近研究入口 + 后端/LLM/知识/竞品状态 + 可折叠“高级研究设置”。
-- **Clarification**：点击开始后，前端用 `researchBrief.ts` 做**确定性完整性检查**。4 个研究范围字段为必填，并建议补充住宅、家庭成员、重点场景、现有设备、痛点、隐私、期望结果和创新尺度；建议项可跳过，留空即“开放探索”。完整高级设置还可配置传感器、安装、连接、商业模式和验证优先级。所有结构化上下文都会发送到后端参与 RAG 与 Agent 分析。**不虚构 `/clarify` 接口，不在前端调用 LLM**。
+- **Research Home（`/`）**：只保留大型自然语言研究输入框、示例 Prompt、最近研究入口和真实系统状态，让首页保持 Deep Research 式的单一任务入口。
+- **Research Setup**：点击开始后进入四步大型弹窗：研究范围 → 研究上下文 → 预测偏好与资料 → 确认 Brief。研究范围为必填；上下文与补充资料可跳过；最后一步才创建后端 Run。产品偏好继续真实影响 RAG、Agent、候选组合和六维评分。
+- **补充资料**：企业内部数据和重点调研资源仅保存当前页面中的 URL 与文件元数据，不读取正文、不持久化，也不会进入 `ForecastRequest`；自动公开资料开关在当前构建中保持关闭。
 - **Live Research（`/runs/:runId`）**：三栏工作台 —— 左「研究流水线」、中「实时研究画布」、右「Research Ledger」。动效**只由真实 SSE 事件与 Artifact 驱动**（阶段呼吸、Agent 扫描、发现卡淡入、数字平滑到真实值），遵守 `prefers-reduced-motion`。
 - **Research Ledger（`researchMetrics.ts`）**：Token/耗时/模型仅取自 Artifact 的 `input_tokens/output_tokens/duration_ms/model_name`，按 Artifact ID 去重、`null` 不计入，当前 Agent 未完成显示“计算中”，绝不伪造逐 Token 流式数字。
 - **Research Report**：完成后保持工作台结构，中间区切换为报告（研究摘要 + Tabs：产品候选 / 共识与分歧 / 机会图谱 / Agent 洞察 / RAG 检索计划 / 竞品与空白 / 证据库）。

@@ -1,51 +1,22 @@
 import { useMemo } from "react";
-import { Layers } from "lucide-react";
 
-import {
-  SCORE_DIMENSIONS,
-  type ForecastOptions,
-  type ResearchContext,
-  type ScoreWeights,
-} from "../../types/api";
-import { DIMENSION_LABELS } from "../../lib/agentLabels";
+import type { ForecastOptions, ResearchContext } from "../../types/api";
 import { useKnowledgeCoverage } from "../../lib/queries";
 import { Field } from "../../components/ui/Field";
 import { TagInput } from "../../components/ui/TagInput";
-import { areWeightsValid, type ResearchBrief } from "./researchBrief";
-
-/** Redistribute weight fractions so they sum to exactly 1.0 (integer percents). */
-function normalizeWeights(weights: ScoreWeights): ScoreWeights {
-  const pct = SCORE_DIMENSIONS.map((key) => Math.round((weights[key] || 0) * 100));
-  const total = pct.reduce((sum, value) => sum + value, 0);
-  const base = total > 0 ? pct.map((value) => (value * 100) / total) : SCORE_DIMENSIONS.map(() => 20);
-  const floored = base.map((value) => Math.floor(value));
-  let remainder = 100 - floored.reduce((sum, value) => sum + value, 0);
-  const order = base
-    .map((value, index) => ({ index, frac: value - Math.floor(value) }))
-    .sort((a, b) => b.frac - a.frac);
-  let cursor = 0;
-  while (remainder > 0) {
-    const target = order[cursor % order.length];
-    if (target) {
-      floored[target.index] = (floored[target.index] ?? 0) + 1;
-      remainder -= 1;
-    }
-    cursor += 1;
-  }
-  const next = {} as ScoreWeights;
-  SCORE_DIMENSIONS.forEach((key, index) => {
-    next[key] = (floored[index] ?? 0) / 100;
-  });
-  return next;
-}
+import type { ResearchBrief } from "./researchBrief";
 
 export interface AdvancedResearchSettingsProps {
   brief: ResearchBrief;
   options: ForecastOptions;
   onChange: (patch: Partial<ResearchBrief>) => void;
+  section?: "all" | "scope" | "context";
 }
 
-const CONTEXT_FIELDS: { key: Exclude<keyof ResearchContext, "innovation_posture">; label: string }[] = [
+const CONTEXT_FIELDS: {
+  key: Exclude<keyof ResearchContext, "innovation_posture">;
+  label: string;
+}[] = [
   { key: "housing_types", label: "住宅类型" },
   { key: "household_members", label: "家庭成员" },
   { key: "security_scenarios", label: "安全场景" },
@@ -78,6 +49,7 @@ function ContextChoiceField({
   const custom = values.filter((value) => !presets.includes(value));
   const update = (next: string[]) =>
     onChange({ research_context: { ...brief.research_context, [field]: next } });
+
   return (
     <Field label={label} hint="可多选，也可自定义">
       {() => (
@@ -103,7 +75,9 @@ function ContextChoiceField({
           </div>
           <TagInput
             values={custom}
-            onChange={(next) => update([...values.filter((value) => presets.includes(value)), ...next])}
+            onChange={(next) =>
+              update([...values.filter((value) => presets.includes(value)), ...next])
+            }
             placeholder="自定义后回车…"
             ariaLabel={`${label}自定义值`}
           />
@@ -113,37 +87,39 @@ function ContextChoiceField({
   );
 }
 
-/**
- * The full deterministic research configuration (regions, users, horizon,
- * price, constraints, candidate count, evaluation weights). Extracted so it can
- * live inside the Deep Research home's collapsible "advanced settings" area.
- */
-export function AdvancedResearchSettings({
+function ScopeSettings({
   brief,
   options,
   onChange,
-}: AdvancedResearchSettingsProps) {
+}: Omit<AdvancedResearchSettingsProps, "section">) {
   const coverage = useKnowledgeCoverage(brief.regions);
   const presetRegions = options.regions;
   const customRegions = useMemo(
     () => brief.regions.filter((region) => !presetRegions.includes(region)),
     [brief.regions, presetRegions],
   );
-
-  const weightPct = (key: (typeof SCORE_DIMENSIONS)[number]) =>
-    Math.round((brief.weights[key] || 0) * 100);
-  const weightTotal = SCORE_DIMENSIONS.reduce((sum, key) => sum + weightPct(key), 0);
-  const weightsOk = areWeightsValid(brief.weights);
-
-  const toggleRegion = (region: string) => {
-    const next = brief.regions.includes(region)
-      ? brief.regions.filter((item) => item !== region)
-      : [...brief.regions, region];
-    onChange({ regions: next });
-  };
+  const toggleRegion = (region: string) =>
+    onChange({
+      regions: brief.regions.includes(region)
+        ? brief.regions.filter((item) => item !== region)
+        : [...brief.regions, region],
+    });
 
   return (
     <div className="stack stack-5">
+      <Field label="研究问题" required>
+        {(aria) => (
+          <textarea
+            {...aria}
+            className="textarea"
+            rows={3}
+            maxLength={1000}
+            value={brief.question}
+            onChange={(event) => onChange({ question: event.target.value })}
+          />
+        )}
+      </Field>
+
       <div className="form-grid">
         <Field label="品类 Category" required>
           {(aria) => (
@@ -155,9 +131,9 @@ export function AdvancedResearchSettings({
             />
           )}
         </Field>
-
         <Field
           label="预测周期（年）"
+          required
           hint={`范围 ${options.forecast_horizon_years.minimum}–${options.forecast_horizon_years.maximum} 年`}
         >
           {(aria) => (
@@ -224,14 +200,8 @@ export function AdvancedResearchSettings({
                           : ""
                     }`}
                     key={item.region}
-                    title={`${item.verified_records} 条已验证资料，${item.hypothesis_records} 条待验证假设`}
                   >
-                    {item.region} ·{" "}
-                    {item.level === "strong"
-                      ? "资料充分"
-                      : item.level === "moderate"
-                        ? "资料一般"
-                        : "资料有限"}
+                    {item.region} · {item.level === "strong" ? "资料充分" : item.level === "moderate" ? "资料一般" : "资料有限"}
                   </span>
                 ))}
               </div>
@@ -252,7 +222,6 @@ export function AdvancedResearchSettings({
             />
           )}
         </Field>
-
         <Field label="价格带 Price Segment" hint="可选，例如 中高端 / Premium">
           {(aria) => (
             <input
@@ -278,50 +247,6 @@ export function AdvancedResearchSettings({
         )}
       </Field>
 
-      <div className="stack stack-4">
-        <div className="stack" style={{ gap: 2 }}>
-          <span className="field-label">详细研究上下文 Research Context</span>
-          <span className="subtle" style={{ fontSize: "var(--text-xs)" }}>
-            这些结构化信息会参与本地 RAG 检索，并传给预测、审议、竞品与产品定义 Agent；留空表示开放探索。
-          </span>
-        </div>
-        {CONTEXT_FIELDS.map(({ key, label }) => (
-          <ContextChoiceField
-            key={key}
-            field={key}
-            label={label}
-            brief={brief}
-            options={options}
-            onChange={onChange}
-          />
-        ))}
-        <Field label="创新尺度" hint="单选；决定候选组合偏量产还是探索">
-          {() => (
-            <div className="optiongrid">
-              {(options.research_context_options.innovation_posture ?? []).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={`option-pill ${brief.research_context.innovation_posture === option ? "is-on" : ""}`}
-                  aria-pressed={brief.research_context.innovation_posture === option}
-                  onClick={() =>
-                    onChange({
-                      research_context: {
-                        ...brief.research_context,
-                        innovation_posture:
-                          brief.research_context.innovation_posture === option ? null : option,
-                      },
-                    })
-                  }
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          )}
-        </Field>
-      </div>
-
       <Field
         label="候选产品数量"
         hint={`范围 ${options.candidate_count.minimum}–${options.candidate_count.maximum} 个`}
@@ -337,54 +262,84 @@ export function AdvancedResearchSettings({
               value={brief.candidate_count}
               onChange={(event) => onChange({ candidate_count: Number(event.target.value) })}
             />
-            <span className="strong" style={{ minWidth: 52 }}>
-              {brief.candidate_count} 个
-            </span>
+            <span className="strong" style={{ minWidth: 52 }}>{brief.candidate_count} 个</span>
           </div>
         )}
       </Field>
+    </div>
+  );
+}
 
-      <div className="stack stack-3">
-        <div className="row between">
-          <span className="field-label">
-            <Layers size={15} aria-hidden="true" /> 评估权重（总和须为 100%）
+function ContextSettings({
+  brief,
+  options,
+  onChange,
+}: Omit<AdvancedResearchSettingsProps, "section">) {
+  return (
+    <div className="stack stack-5">
+      <div className="row between wrap row-gap-2">
+        <div className="stack" style={{ gap: 2 }}>
+          <strong>详细研究上下文</strong>
+          <span className="subtle" style={{ fontSize: "var(--text-xs)" }}>
+            选填；已填写内容会参与本地 RAG 和所有 Agent 分析。
           </span>
         </div>
-        {SCORE_DIMENSIONS.map((dimension) => (
-          <div className="weight-row" key={dimension}>
-            <span className="weight-name">{DIMENSION_LABELS[dimension]}</span>
-            <input
-              className="weight-range"
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              value={weightPct(dimension)}
-              aria-label={`${DIMENSION_LABELS[dimension]} 权重`}
-              onChange={(event) =>
-                onChange({
-                  weights: { ...brief.weights, [dimension]: Number(event.target.value) / 100 },
-                })
-              }
-            />
-            <span className="weight-pct">{weightPct(dimension)}%</span>
-          </div>
-        ))}
-        <div className={`weight-total ${weightsOk ? "is-ok" : "is-bad"}`}>
-          <span>权重总和：{weightTotal}%</span>
-          {weightsOk ? (
-            <span>已归一化 ✓</span>
-          ) : (
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => onChange({ weights: normalizeWeights(brief.weights) })}
-            >
-              一键归一化为 100%
-            </button>
-          )}
-        </div>
+        <span className="chip chip-outline">全部选填</span>
       </div>
+      {CONTEXT_FIELDS.map(({ key, label }) => (
+        <ContextChoiceField
+          key={key}
+          field={key}
+          label={label}
+          brief={brief}
+          options={options}
+          onChange={onChange}
+        />
+      ))}
+      <Field label="创新尺度" hint="单选；决定候选组合偏量产还是探索">
+        {() => (
+          <div className="optiongrid">
+            {(options.research_context_options.innovation_posture ?? []).map((option) => (
+              <button
+                key={option}
+                type="button"
+                className={`option-pill ${brief.research_context.innovation_posture === option ? "is-on" : ""}`}
+                aria-pressed={brief.research_context.innovation_posture === option}
+                onClick={() =>
+                  onChange({
+                    research_context: {
+                      ...brief.research_context,
+                      innovation_posture:
+                        brief.research_context.innovation_posture === option ? null : option,
+                    },
+                  })
+                }
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        )}
+      </Field>
+    </div>
+  );
+}
+
+/** Shared settings surface. The setup dialog renders scope and context as separate steps. */
+export function AdvancedResearchSettings({
+  brief,
+  options,
+  onChange,
+  section = "all",
+}: AdvancedResearchSettingsProps) {
+  return (
+    <div className="stack stack-6">
+      {(section === "all" || section === "scope") && (
+        <ScopeSettings brief={brief} options={options} onChange={onChange} />
+      )}
+      {(section === "all" || section === "context") && (
+        <ContextSettings brief={brief} options={options} onChange={onChange} />
+      )}
     </div>
   );
 }

@@ -29,7 +29,7 @@ function polarPoint(
 }
 
 /**
- * Dependency-free radar (spider) chart for the five scoring dimensions.
+ * Dependency-free radar (spider) chart for the six scoring dimensions.
  * Supports one or more series for the candidate compare view.
  */
 export function ScoreRadar({
@@ -52,7 +52,7 @@ export function ScoreRadar({
         height={size}
         viewBox={`0 0 ${size} ${size}`}
         role="img"
-        aria-label={`五维评分雷达图：${series.map((s) => s.label).join("、")}`}
+        aria-label={`六维评分雷达图：${series.map((s) => s.label).join("、")}`}
       >
         {/* grid rings */}
         {rings.map((ring) => {
