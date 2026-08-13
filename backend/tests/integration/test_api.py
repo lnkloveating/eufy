@@ -24,6 +24,24 @@ def test_forecast_options_support_regions_and_custom_values() -> None:
     assert "innovation_posture" in body["research_context_options"]
 
 
+def test_forecast_options_expose_strategy_presets() -> None:
+    body = TestClient(create_app()).get("/api/v1/forecast-options").json()
+    assert body["default_strategy_profile"] == "balanced"
+    # default_weights is now six-dimensional.
+    assert "cost_effectiveness" in body["default_weights"]
+    presets = body["strategy_presets"]
+    assert {preset["id"] for preset in presets} == {
+        "balanced",
+        "breakthrough",
+        "value",
+        "ecosystem",
+    }
+    for preset in presets:
+        assert set(preset) >= {"id", "label", "description", "weights"}
+        assert "cost_effectiveness" in preset["weights"]
+        assert abs(sum(preset["weights"].values()) - 1.0) < 1e-9
+
+
 def test_knowledge_coverage_and_retrieval_preview_are_auditable() -> None:
     client = TestClient(create_app())
     coverage = client.get("/api/v1/knowledge/coverage", params={"regions": "China"})

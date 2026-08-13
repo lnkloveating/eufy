@@ -47,8 +47,29 @@ function deriveStage(events: AgentEvent[]): string {
       stage = "opportunity_synthesis";
     else if (event.event_type === "agent_started" && agent === "competitor-analysis")
       stage = "competitor_analysis";
+    else if (event.event_type === "agent_started" && agent === "current-product-auditor")
+      stage = "current_capability_audit";
+    else if (event.event_type === "agent_started" && agent === "candidate-novelty-auditor")
+      stage = "novelty_audit";
+    else if (event.event_type === "agent_started" && agent === "portfolio-diversity-auditor")
+      stage = "portfolio_diversity_audit";
     else if (event.event_type === "agent_started" && agent === "product-architect")
       stage = "candidate_generation";
+    else if (
+      event.event_type === "novelty_audit_started" ||
+      event.event_type === "novelty_gate_failed" ||
+      event.event_type === "novelty_rescue_started" ||
+      event.event_type === "novelty_gate_degraded" ||
+      event.event_type === "novelty_audit_completed"
+    )
+      stage = "novelty_audit";
+    else if (
+      event.event_type === "portfolio_diversity_audit_started" ||
+      event.event_type === "portfolio_duplicate_found" ||
+      event.event_type === "portfolio_diversity_degraded" ||
+      event.event_type === "portfolio_diversity_audit_completed"
+    )
+      stage = "portfolio_diversity_audit";
     else if (event.event_type === "agent_started" && agent.startsWith("reviewer-"))
       stage = "candidate_review";
   }

@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek-v4-flash"
     llm_timeout_seconds: float = 120.0
     llm_max_retries: int = 2
+    llm_max_output_tokens: int = 6_000
     workflow_timeout_seconds: float = 900.0
     cors_origins: list[str] = ["http://localhost:5173"]
 

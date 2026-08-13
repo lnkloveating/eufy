@@ -1,4 +1,4 @@
-/** Validation + normalization helpers for the five evaluation weights. */
+/** Validation + normalization helpers for the six evaluation weights. */
 
 import { SCORE_DIMENSIONS, type ScoreDimension, type ScoreWeights } from "../types/api";
 
@@ -9,7 +9,7 @@ export function weightsTotal(weights: ScoreWeights): number {
   return SCORE_DIMENSIONS.reduce((sum, dimension) => sum + (weights[dimension] || 0), 0);
 }
 
-/** True when the five weights sum to 1.0 within the backend tolerance. */
+/** True when the six weights sum to 1.0 within the backend tolerance. */
 export function areWeightsValid(weights: ScoreWeights): boolean {
   return Math.abs(weightsTotal(weights) - 1.0) <= WEIGHT_TOLERANCE;
 }

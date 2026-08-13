@@ -7,7 +7,12 @@ import {
   Table2,
 } from "lucide-react";
 
-import type { EvidenceRecord, RankedCandidate } from "../../types/api";
+import type {
+  CandidateNoveltyAssessment,
+  EvidenceRecord,
+  NoveltyAudit,
+  RankedCandidate,
+} from "../../types/api";
 import { SCORE_DIMENSIONS } from "../../types/api";
 import { getDimensionLabel } from "../../lib/agentLabels";
 import { orderForDisplay, topCandidate } from "../../lib/candidates";
@@ -43,10 +48,11 @@ export interface CandidatesPanelProps {
   runId: string;
   candidates: RankedCandidate[];
   evidence: EvidenceRecord[];
+  noveltyAudit: NoveltyAudit | null;
 }
 
 /** Product candidate comparison: cards, compare table, radar, human selection. */
-export function CandidatesPanel({ runId, candidates }: CandidatesPanelProps) {
+export function CandidatesPanel({ runId, candidates, noveltyAudit }: CandidatesPanelProps) {
   const navigate = useNavigate();
   const toast = useToast();
   const selection = useCreateSelection(runId);
@@ -68,6 +74,9 @@ export function CandidatesPanel({ runId, candidates }: CandidatesPanelProps) {
 
   const ordered = orderForDisplay(candidates);
   const best = topCandidate(candidates);
+  const noveltyByCandidate = new Map(
+    (noveltyAudit?.assessments ?? []).map((item) => [item.candidate_id, item]),
+  );
 
   const openSelect = (ranked: RankedCandidate) => {
     setSelectError(null);
@@ -132,6 +141,7 @@ export function CandidatesPanel({ runId, candidates }: CandidatesPanelProps) {
             <CandidateCard
               key={ranked.candidate.id}
               ranked={ranked}
+              novelty={noveltyByCandidate.get(ranked.candidate.id)}
               isTop={best?.candidate.id === ranked.candidate.id}
               onDetail={() => setDetail(ranked)}
               onSelect={() => openSelect(ranked)}
@@ -144,6 +154,7 @@ export function CandidatesPanel({ runId, candidates }: CandidatesPanelProps) {
 
       <CandidateDetailDrawer
         ranked={detail}
+        novelty={detail ? noveltyByCandidate.get(detail.candidate.id) : undefined}
         onClose={() => setDetail(null)}
         onSelect={openSelect}
       />
@@ -165,12 +176,13 @@ export function CandidatesPanel({ runId, candidates }: CandidatesPanelProps) {
 
 interface CandidateCardProps {
   ranked: RankedCandidate;
+  novelty?: CandidateNoveltyAssessment;
   isTop: boolean;
   onDetail: () => void;
   onSelect: () => void;
 }
 
-function CandidateCard({ ranked, isTop, onDetail, onSelect }: CandidateCardProps) {
+function CandidateCard({ ranked, novelty, isTop, onDetail, onSelect }: CandidateCardProps) {
   const { candidate, dimension_scores, weighted_score, rank } = ranked;
   return (
     <article className={`card cand-card ${isTop ? "is-top" : ""}`}>
@@ -192,6 +204,11 @@ function CandidateCard({ ranked, isTop, onDetail, onSelect }: CandidateCardProps
       <div className="stack stack-2">
         <h3 className="cand-name">{candidate.name}</h3>
         <p className="cand-tagline">{candidate.tagline}</p>
+        {novelty && (
+          <span className="chip chip-accent" style={{ width: "fit-content" }}>
+            创新门槛已通过 · {noveltyLabel(novelty.classification)} · 与现有能力重合 {Math.round(novelty.overlap_ratio * 100)}%
+          </span>
+        )}
       </div>
 
       <div className="dimscore-row">
@@ -237,6 +254,16 @@ function CandidateCard({ ranked, isTop, onDetail, onSelect }: CandidateCardProps
       </div>
     </article>
   );
+}
+
+function noveltyLabel(classification: CandidateNoveltyAssessment["classification"]): string {
+  const labels = {
+    existing_equivalent: "现有能力等价",
+    feature_extension: "功能升级",
+    adjacent_innovation: "邻近创新",
+    new_product_category: "新品类",
+  } as const;
+  return labels[classification];
 }
 
 function MiniDef({ label, value }: { label: string; value: string }) {

@@ -1,17 +1,11 @@
-import { Layers } from "lucide-react";
+import { useMemo } from "react";
 
-import {
-  SCORE_DIMENSIONS,
-  type ForecastOptions,
-  type ResearchContext,
-  type ScoreWeights,
-} from "../../types/api";
-import { DIMENSION_LABELS } from "../../lib/agentLabels";
+import type { ForecastOptions, ResearchContext } from "../../types/api";
 import { useKnowledgeCoverage } from "../../lib/queries";
 import { Field } from "../../components/ui/Field";
 import { MultiSelectCombobox } from "../../components/ui/MultiSelectCombobox";
 import { TagInput } from "../../components/ui/TagInput";
-import { areWeightsValid, type ResearchBrief } from "./researchBrief";
+import type { ResearchBrief } from "./researchBrief";
 
 const REGION_LABELS: Record<string, string> = {
   China: "中国",
@@ -30,40 +24,17 @@ function formatRegionLabel(region: string) {
   return REGION_LABELS[region] ?? region;
 }
 
-function normalizeWeights(weights: ScoreWeights): ScoreWeights {
-  const pct = SCORE_DIMENSIONS.map((key) => Math.round((weights[key] || 0) * 100));
-  const total = pct.reduce((sum, value) => sum + value, 0);
-  const base = total > 0 ? pct.map((value) => (value * 100) / total) : SCORE_DIMENSIONS.map(() => 20);
-  const floored = base.map((value) => Math.floor(value));
-  let remainder = 100 - floored.reduce((sum, value) => sum + value, 0);
-  const order = base
-    .map((value, index) => ({ index, frac: value - Math.floor(value) }))
-    .sort((a, b) => b.frac - a.frac);
-
-  let cursor = 0;
-  while (remainder > 0) {
-    const target = order[cursor % order.length];
-    if (target) {
-      floored[target.index] = (floored[target.index] ?? 0) + 1;
-      remainder -= 1;
-    }
-    cursor += 1;
-  }
-
-  const next = {} as ScoreWeights;
-  SCORE_DIMENSIONS.forEach((key, index) => {
-    next[key] = (floored[index] ?? 0) / 100;
-  });
-  return next;
-}
-
 export interface AdvancedResearchSettingsProps {
   brief: ResearchBrief;
   options: ForecastOptions;
   onChange: (patch: Partial<ResearchBrief>) => void;
+  section?: "all" | "scope" | "context";
 }
 
-const CONTEXT_FIELDS: { key: Exclude<keyof ResearchContext, "innovation_posture">; label: string }[] = [
+const CONTEXT_FIELDS: {
+  key: Exclude<keyof ResearchContext, "innovation_posture">;
+  label: string;
+}[] = [
   { key: "housing_types", label: "住宅类型" },
   { key: "household_members", label: "家庭成员" },
   { key: "security_scenarios", label: "安全场景" },
@@ -123,7 +94,9 @@ function ContextChoiceField({
           </div>
           <TagInput
             values={custom}
-            onChange={(next) => update([...values.filter((value) => presets.includes(value)), ...next])}
+            onChange={(next) =>
+              update([...values.filter((value) => presets.includes(value)), ...next])
+            }
             placeholder="添加自定义项后回车…"
             ariaLabel={`${label} 自定义值`}
           />
@@ -133,17 +106,16 @@ function ContextChoiceField({
   );
 }
 
-export function AdvancedResearchSettings({
+function ScopeSettings({
   brief,
   options,
   onChange,
-}: AdvancedResearchSettingsProps) {
+}: Omit<AdvancedResearchSettingsProps, "section">) {
   const coverage = useKnowledgeCoverage(brief.regions);
-
-  const weightPct = (key: (typeof SCORE_DIMENSIONS)[number]) =>
-    Math.round((brief.weights[key] || 0) * 100);
-  const weightTotal = SCORE_DIMENSIONS.reduce((sum, key) => sum + weightPct(key), 0);
-  const weightsOk = areWeightsValid(brief.weights);
+  const customRegions = useMemo(
+    () => brief.regions.filter((region) => !options.regions.includes(region)),
+    [brief.regions, options.regions],
+  );
 
   return (
     <div className="advanced-settings stack">
@@ -199,6 +171,16 @@ export function AdvancedResearchSettings({
               allowCustom={options.custom_regions_allowed}
               emptyText="没有匹配的地区"
             />
+
+            {options.custom_regions_allowed && customRegions.length > 0 && (
+              <div className="row wrap row-gap-2" aria-label="自定义地区">
+                {customRegions.map((region) => (
+                  <span className="chip chip-outline" key={region}>
+                    自定义 · {region}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {coverage.data && brief.regions.length > 0 && (
               <div className="row wrap row-gap-2" aria-label="地区知识覆盖度">
@@ -266,52 +248,6 @@ export function AdvancedResearchSettings({
         )}
       </Field>
 
-      <div className="advanced-context stack stack-4">
-        <div className="advanced-context-head stack">
-          <span className="field-label">详细研究上下文</span>
-          <span className="subtle" style={{ fontSize: "var(--text-xs)" }}>
-            这些结构化信息会参与本地 RAG 检索，并传给预测、审议、竞品与产品定义 Agent；留空表示开放探索。
-          </span>
-        </div>
-
-        {CONTEXT_FIELDS.map(({ key, label }) => (
-          <ContextChoiceField
-            key={key}
-            field={key}
-            label={label}
-            brief={brief}
-            options={options}
-            onChange={onChange}
-          />
-        ))}
-
-        <Field label="创新尺度" hint="单选；决定候选组合偏量产还是探索">
-          {() => (
-            <div className="optiongrid">
-              {(options.research_context_options.innovation_posture ?? []).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={`option-pill ${brief.research_context.innovation_posture === option ? "is-on" : ""}`}
-                  aria-pressed={brief.research_context.innovation_posture === option}
-                  onClick={() =>
-                    onChange({
-                      research_context: {
-                        ...brief.research_context,
-                        innovation_posture:
-                          brief.research_context.innovation_posture === option ? null : option,
-                      },
-                    })
-                  }
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          )}
-        </Field>
-      </div>
-
       <Field
         label="候选产品数量"
         hint={`范围 ${options.candidate_count.minimum}-${options.candidate_count.maximum} 个`}
@@ -333,50 +269,81 @@ export function AdvancedResearchSettings({
           </div>
         )}
       </Field>
+    </div>
+  );
+}
 
-      <div className="stack stack-3">
-        <div className="row between">
-          <span className="field-label">
-            <Layers size={15} aria-hidden="true" /> 评估权重（总和须为 100%）
+function ContextSettings({
+  brief,
+  options,
+  onChange,
+}: Omit<AdvancedResearchSettingsProps, "section">) {
+  return (
+    <div className="stack stack-5">
+      <div className="row between wrap row-gap-2">
+        <div className="stack stack-micro">
+          <strong>详细研究上下文</strong>
+          <span className="subtle" style={{ fontSize: "var(--text-xs)" }}>
+            选填；这些结构化信息会参与本地 RAG 和所有 Agent 分析。
           </span>
         </div>
-
-        {SCORE_DIMENSIONS.map((dimension) => (
-          <div className="weight-row" key={dimension}>
-            <span className="weight-name">{DIMENSION_LABELS[dimension]}</span>
-            <input
-              className="weight-range"
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              value={weightPct(dimension)}
-              aria-label={`${DIMENSION_LABELS[dimension]} 权重`}
-              onChange={(event) =>
-                onChange({
-                  weights: { ...brief.weights, [dimension]: Number(event.target.value) / 100 },
-                })
-              }
-            />
-            <span className="weight-pct">{weightPct(dimension)}%</span>
-          </div>
-        ))}
-
-        <div className={`weight-total ${weightsOk ? "is-ok" : "is-bad"}`}>
-          <span>权重总和：{weightTotal}%</span>
-          {weightsOk ? (
-            <span>已归一化为 100%</span>
-          ) : (
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => onChange({ weights: normalizeWeights(brief.weights) })}
-            >
-              一键归一化为 100%
-            </button>
-          )}
-        </div>
+        <span className="chip chip-outline">全部选填</span>
       </div>
+
+      {CONTEXT_FIELDS.map(({ key, label }) => (
+        <ContextChoiceField
+          key={key}
+          field={key}
+          label={label}
+          brief={brief}
+          options={options}
+          onChange={onChange}
+        />
+      ))}
+
+      <Field label="创新尺度" hint="单选；决定候选组合更偏量产还是探索">
+        {() => (
+          <div className="optiongrid">
+            {(options.research_context_options.innovation_posture ?? []).map((option) => (
+              <button
+                key={option}
+                type="button"
+                className={`option-pill ${brief.research_context.innovation_posture === option ? "is-on" : ""}`}
+                aria-pressed={brief.research_context.innovation_posture === option}
+                onClick={() =>
+                  onChange({
+                    research_context: {
+                      ...brief.research_context,
+                      innovation_posture:
+                        brief.research_context.innovation_posture === option ? null : option,
+                    },
+                  })
+                }
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        )}
+      </Field>
+    </div>
+  );
+}
+
+export function AdvancedResearchSettings({
+  brief,
+  options,
+  onChange,
+  section = "all",
+}: AdvancedResearchSettingsProps) {
+  return (
+    <div className="stack stack-6">
+      {(section === "all" || section === "scope") && (
+        <ScopeSettings brief={brief} options={options} onChange={onChange} />
+      )}
+      {(section === "all" || section === "context") && (
+        <ContextSettings brief={brief} options={options} onChange={onChange} />
+      )}
     </div>
   );
 }

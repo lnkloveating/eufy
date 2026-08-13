@@ -1,4 +1,5 @@
 import {
+  Compass,
   Cpu,
   Gavel,
   Radar,
@@ -7,8 +8,9 @@ import {
   Users,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import type { AgentEvent, Artifact } from "../../types/api";
+import type { AgentEvent, Artifact, StrategyProfile } from "../../types/api";
 import { getStageLabel } from "../../lib/stageLabels";
+import { getStrategyLabel } from "../../lib/strategy";
 import { AgentActivityGrid } from "./AgentActivityCard";
 import { ResearchFindingCard } from "./ResearchFindingCard";
 import { IntermediateArtifacts } from "./IntermediateArtifacts";
@@ -24,6 +26,7 @@ const REVIEWER_AGENTS: { agent: string; icon: ReactNode }[] = [
   { agent: "reviewer-innovation", icon: <Gavel size={17} /> },
   { agent: "reviewer-user_value", icon: <Gavel size={17} /> },
   { agent: "reviewer-business_value", icon: <Gavel size={17} /> },
+  { agent: "reviewer-cost_effectiveness", icon: <Gavel size={17} /> },
   { agent: "reviewer-feasibility", icon: <Gavel size={17} /> },
   { agent: "reviewer-eufy_synergy", icon: <Gavel size={17} /> },
 ];
@@ -54,8 +57,10 @@ function focusMessage(stage: string, regions: string[]): string {
       return "正在对比 Ring、Google Nest、Arlo、Reolink、Aqara、SimpliSafe 等竞品的能力与边界，识别可验证的竞争空白……";
     case "candidate_generation":
       return "正在将未来机会与竞争空白转换为差异化产品候选……";
+    case "portfolio_diversity_audit":
+      return "正在两两比较候选的用户任务、产品形态、感知与执行机制、系统架构和商业交付；重复方向将被定向重生……";
     case "candidate_review":
-      return "五个盲评 Agent 正在从创新性、用户价值、商业价值、可行性与 eufy 协同性独立打分……";
+      return "六个盲评 Agent 正在从创新性、用户价值、商业价值、性价比、可行性与 eufy 协同性独立打分……";
     default:
       return "多个 Agent 正在并行工作，研究发现会实时出现在这里。";
   }
@@ -73,8 +78,30 @@ export function LiveResearchCanvas({ stage, regions, events, artifacts }: LiveRe
   const findings = events.filter((event) => event.event_type === "artifact_ready");
   const recentFindings = [...findings].reverse().slice(0, 6);
 
+  const strategyEvent = events.find((event) => event.event_type === "strategy_applied");
+  const strategyProfile = strategyEvent?.payload?.strategy_profile as StrategyProfile | undefined;
+  const strategyExplanation = strategyEvent?.payload?.strategy_explanation as string | undefined;
+
   return (
     <div className="stack stack-5">
+      {/* Applied strategy — from the real strategy_applied event only */}
+      {strategyProfile && (
+        <div className="card card-pad stack stack-2" style={{ borderLeft: "3px solid var(--accent)" }}>
+          <span className="row row-gap-2 strong">
+            <Compass size={16} style={{ color: "var(--accent)" }} aria-hidden="true" />
+            研究策略已应用：{getStrategyLabel(strategyProfile)}
+          </span>
+          {strategyExplanation && (
+            <span className="subtle" style={{ fontSize: "var(--text-xs)" }}>
+              {strategyExplanation}
+            </span>
+          )}
+          <span className="muted" style={{ fontSize: "var(--text-xs)" }}>
+            六维评审权重已锁定，最终排名将按该权重加权。
+          </span>
+        </div>
+      )}
+
       {/* Current focus */}
       <div className="card focus-card">
         <div className="row row-gap-3" style={{ alignItems: "flex-start" }}>

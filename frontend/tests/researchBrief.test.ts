@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScoreWeights } from "../src/types/api";
 import {
-  applyClarificationAnswers,
   applyExamplePrompt,
   areWeightsValid,
   briefToRequest,
@@ -9,16 +8,16 @@ import {
   emptyResearchContext,
   EXAMPLE_PROMPTS,
   getBriefCompleteness,
-  getMissingClarifications,
   getMissingFields,
   isBriefComplete,
   type ResearchBrief,
 } from "../src/features/forecast-create/researchBrief";
 
 const WEIGHTS: ScoreWeights = {
-  innovation: 0.3,
-  user_value: 0.25,
-  business_value: 0.2,
+  innovation: 0.25,
+  user_value: 0.2,
+  business_value: 0.15,
+  cost_effectiveness: 0.15,
   feasibility: 0.15,
   eufy_synergy: 0.1,
 };
@@ -34,6 +33,7 @@ function brief(overrides: Partial<ResearchBrief> = {}): ResearchBrief {
     constraints: [],
     research_context: emptyResearchContext(),
     candidate_count: 6,
+    strategy_profile: "balanced",
     weights: WEIGHTS,
     ...overrides,
   };
@@ -64,14 +64,12 @@ describe("completeness check", () => {
     expect(getMissingFields(complete)).toEqual([]);
   });
 
-  it("only surfaces clarification cards for currently-missing fields", () => {
+  it("only reports genuinely required fields as missing", () => {
     const partial = brief({
       question: "未来三年美国独栋家庭有哪些安防机会？",
       forecast_horizon_years: 3,
     });
-    const questions = getMissingClarifications(partial);
-    expect(questions.slice(0, 2).map((q) => q.key)).toEqual(["regions", "target_users"]);
-    expect(questions.map((q) => q.key)).toContain("security_scenarios");
+    expect(getMissingFields(partial)).toEqual(["regions", "target_users"]);
   });
 });
 
@@ -84,29 +82,6 @@ describe("example prompts", () => {
     expect(next.forecast_horizon_years).toBe(3);
     expect(next.constraints).toContain("不依赖强制订阅");
     expect(next.research_context.housing_types).toContain("独栋住宅");
-  });
-});
-
-describe("clarification answers", () => {
-  it("merges list, number and text answers into the brief", () => {
-    const next = applyClarificationAnswers(brief({ question: "一个足够长的研究问题内容" }), {
-      regions: ["United States", "China", "China"],
-      target_users: ["城市公寓家庭"],
-      forecast_horizon_years: ["5"],
-      housing_types: ["城市公寓"],
-      pain_points: ["误报过多", "误报过多"],
-    });
-    expect(next.regions).toEqual(["United States", "China"]); // deduped
-    expect(next.target_users).toEqual(["城市公寓家庭"]);
-    expect(next.forecast_horizon_years).toBe(5);
-    expect(next.research_context.housing_types).toEqual(["城市公寓"]);
-    expect(next.research_context.pain_points).toEqual(["误报过多"]);
-    expect(isBriefComplete(next)).toBe(true);
-  });
-
-  it("clamps a custom horizon into the allowed 1..10 range", () => {
-    const next = applyClarificationAnswers(brief(), { forecast_horizon_years: ["99"] });
-    expect(next.forecast_horizon_years).toBe(10);
   });
 });
 

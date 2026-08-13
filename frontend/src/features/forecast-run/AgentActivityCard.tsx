@@ -16,14 +16,13 @@ const STARTED_EVENTS = new Set(["agent_started", "product_definition_started"]);
 
 /** Live status for a single agent derived from the event stream. */
 export function agentStatus(events: AgentEvent[], agent: string): AgentStatus {
-  let started = false;
-  let done = false;
+  let status: AgentStatus = "idle";
   for (const event of events) {
     if (event.agent !== agent) continue;
-    if (STARTED_EVENTS.has(event.event_type)) started = true;
-    if (COMPLETED_EVENTS.has(event.event_type)) done = true;
+    if (STARTED_EVENTS.has(event.event_type)) status = "running";
+    if (COMPLETED_EVENTS.has(event.event_type)) status = "done";
   }
-  return done ? "done" : started ? "running" : "idle";
+  return status;
 }
 
 /** Count artifacts produced by an agent + total duration reported. */

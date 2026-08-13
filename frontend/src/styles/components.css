@@ -761,19 +761,31 @@
 .dialog {
   width: min(540px, 96vw);
   max-height: 90vh;
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   background: var(--surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   animation: pop 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
+.dialog-xl { width: min(1080px, 96vw); height: min(820px, 92vh); }
 @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
 .dialog-head { padding: var(--space-6) var(--space-6) 0; }
-.dialog-body { padding: var(--space-5) var(--space-6); display: flex; flex-direction: column; gap: var(--space-4); }
+.dialog-body { padding: var(--space-5) var(--space-6); display: flex; flex-direction: column; gap: var(--space-4); overflow-y: auto; min-height: 0; }
 .dialog-foot {
   padding: var(--space-4) var(--space-6) var(--space-6);
   display: flex; justify-content: flex-end; gap: var(--space-3);
   flex-wrap: wrap;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+@media (max-width: 720px) {
+  .dialog-overlay { padding: 0; }
+  .dialog-xl { width: 100vw; height: 100vh; max-height: 100vh; border-radius: 0; }
+  .dialog-head { padding: var(--space-4) var(--space-4) 0; }
+  .dialog-body { padding: var(--space-4); }
+  .dialog-foot { padding: var(--space-3) var(--space-4) var(--space-4); }
 }
 
 /* ---------- Toasts ---------- */

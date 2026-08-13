@@ -57,7 +57,10 @@ const GROUPS: RosterGroup[] = [
     entries: [
       { agent: "opportunity-synthesizer", icon: <Boxes size={17} /> },
       { agent: "competitor-analysis", icon: <Swords size={17} /> },
+      { agent: "current-product-auditor", icon: <ShieldQuestion size={17} /> },
       { agent: "product-architect", icon: <Boxes size={17} /> },
+      { agent: "candidate-novelty-auditor", icon: <ShieldQuestion size={17} /> },
+      { agent: "portfolio-diversity-auditor", icon: <ShieldQuestion size={17} /> },
     ],
   },
   {
@@ -81,21 +84,16 @@ const COMPLETED_EVENTS = new Set([
 
 /** Derive each agent's live status from the event stream. */
 function computeStatuses(events: AgentEvent[]): Record<string, AgentStatus> {
-  const started = new Set<string>();
-  const completed = new Set<string>();
+  const latest: Record<string, AgentStatus> = {};
   for (const event of events) {
     if (!event.agent) continue;
-    if (STARTED_EVENTS.has(event.event_type)) started.add(event.agent);
-    if (COMPLETED_EVENTS.has(event.event_type)) completed.add(event.agent);
+    if (STARTED_EVENTS.has(event.event_type)) latest[event.agent] = "running";
+    if (COMPLETED_EVENTS.has(event.event_type)) latest[event.agent] = "done";
   }
   const statuses: Record<string, AgentStatus> = {};
   for (const group of GROUPS) {
     for (const entry of group.entries) {
-      statuses[entry.agent] = completed.has(entry.agent)
-        ? "done"
-        : started.has(entry.agent)
-          ? "running"
-          : "idle";
+      statuses[entry.agent] = latest[entry.agent] ?? "idle";
     }
   }
   return statuses;

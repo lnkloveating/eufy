@@ -9,10 +9,14 @@ from pydantic import BaseModel
 
 
 def compact_json(value: Any) -> str:
-    if isinstance(value, BaseModel):
-        value = value.model_dump(mode="json")
-    elif isinstance(value, list):
-        value = [
-            item.model_dump(mode="json") if isinstance(item, BaseModel) else item for item in value
-        ]
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    def encode(item: Any) -> Any:
+        if isinstance(item, BaseModel):
+            return item.model_dump(mode="json")
+        raise TypeError(f"Object of type {type(item).__name__} is not JSON serializable")
+
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        default=encode,
+    )

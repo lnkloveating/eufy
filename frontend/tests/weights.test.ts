@@ -7,15 +7,16 @@ import {
 } from "../src/lib/weights";
 
 const DEFAULT: ScoreWeights = {
-  innovation: 0.3,
-  user_value: 0.25,
-  business_value: 0.2,
+  innovation: 0.25,
+  user_value: 0.2,
+  business_value: 0.15,
+  cost_effectiveness: 0.15,
   feasibility: 0.15,
   eufy_synergy: 0.1,
 };
 
 describe("weights validation", () => {
-  it("accepts weights that sum to 1.0", () => {
+  it("accepts six-dimension weights that sum to 1.0", () => {
     expect(weightsTotal(DEFAULT)).toBeCloseTo(1, 5);
     expect(areWeightsValid(DEFAULT)).toBe(true);
   });
@@ -25,6 +26,7 @@ describe("weights validation", () => {
       innovation: 0.5,
       user_value: 0.5,
       business_value: 0.5,
+      cost_effectiveness: 0,
       feasibility: 0,
       eufy_synergy: 0,
     };
@@ -33,9 +35,10 @@ describe("weights validation", () => {
 
   it("treats a total within tolerance as valid", () => {
     const nearly: ScoreWeights = {
-      innovation: 0.3005,
-      user_value: 0.25,
-      business_value: 0.2,
+      innovation: 0.2505,
+      user_value: 0.2,
+      business_value: 0.15,
+      cost_effectiveness: 0.15,
       feasibility: 0.15,
       eufy_synergy: 0.0995,
     };
@@ -47,6 +50,7 @@ describe("weights validation", () => {
       innovation: 2,
       user_value: 2,
       business_value: 0,
+      cost_effectiveness: 0,
       feasibility: 0,
       eufy_synergy: 0,
     };
@@ -57,16 +61,17 @@ describe("weights validation", () => {
     expect(areWeightsValid(normalized)).toBe(true);
   });
 
-  it("falls back to an even split when every weight is zero", () => {
+  it("falls back to an even six-way split when every weight is zero", () => {
     const zero: ScoreWeights = {
       innovation: 0,
       user_value: 0,
       business_value: 0,
+      cost_effectiveness: 0,
       feasibility: 0,
       eufy_synergy: 0,
     };
     const normalized = normalizeWeights(zero);
     expect(weightsTotal(normalized)).toBeCloseTo(1, 5);
-    expect(normalized.innovation).toBeCloseTo(0.2, 5);
+    expect(normalized.innovation).toBeCloseTo(1 / 6, 5);
   });
 });

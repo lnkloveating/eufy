@@ -12,6 +12,7 @@ export interface DialogProps {
   footer?: ReactNode;
   /** Block closing (e.g. while a request is in flight). */
   busy?: boolean;
+  size?: "default" | "xl";
 }
 
 /** Modal dialog rendered in a portal, with Escape-to-close and scroll lock. */
@@ -23,6 +24,7 @@ export function Dialog({
   children,
   footer,
   busy = false,
+  size = "default",
 }: DialogProps) {
   const titleId = useId();
 
@@ -50,7 +52,7 @@ export function Dialog({
       }}
     >
       <div
-        className="dialog"
+        className={`dialog ${size === "xl" ? "dialog-xl" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

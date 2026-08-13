@@ -158,6 +158,26 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
           <p className="def-val">{spec.ai_decision_boundary}</p>
         </Section>
 
+        {spec.capability_delta && (
+          <Section icon={<ShieldCheck size={16} />} title="未来能力增量 Capability Delta" span>
+            <div className="deflist">
+              <Def label="创新探索向量" value={spec.capability_delta.innovation_vector} />
+              <Def label="为什么今天还没有" value={spec.capability_delta.why_not_available_today} />
+              <Def label="硬件 / 系统增量" value={spec.capability_delta.hardware_or_system_delta} />
+            </div>
+            <div className="spec-grid" style={{ marginTop: "var(--space-4)" }}>
+              <div className="stack stack-2">
+                <span className="opp-section-label">今天已有的相近能力</span>
+                <Bullets items={spec.capability_delta.today_equivalents} />
+              </div>
+              <div className="stack stack-2">
+                <span className="opp-section-label">真正新增的能力</span>
+                <Bullets items={spec.capability_delta.new_capabilities} />
+              </div>
+            </div>
+          </Section>
+        )}
+
         <div className="spec-grid">
           <Section icon={<Route size={16} />} title="用户旅程">
             <Bullets items={spec.user_journeys} />

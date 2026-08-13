@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { AlertTriangle, FlaskConical, Gavel, ShieldCheck, Sparkles, Swords } from "lucide-react";
-import type { RankedCandidate } from "../../types/api";
+import { AlertTriangle, Compass, FlaskConical, Gavel, ShieldCheck, Sparkles, Swords } from "lucide-react";
+import type { CandidateNoveltyAssessment, RankedCandidate } from "../../types/api";
 import { SCORE_DIMENSIONS } from "../../types/api";
 import { getDimensionLabel } from "../../lib/agentLabels";
 import { formatScore } from "../../lib/formatters";
@@ -16,6 +16,7 @@ function scoreClass(score: number): string {
 
 export interface CandidateDetailDrawerProps {
   ranked: RankedCandidate | null;
+  novelty?: CandidateNoveltyAssessment;
   onClose: () => void;
   onSelect: (ranked: RankedCandidate) => void;
 }
@@ -23,6 +24,7 @@ export interface CandidateDetailDrawerProps {
 /** Full detail + blind-review opinions for a single candidate. */
 export function CandidateDetailDrawer({
   ranked,
+  novelty,
   onClose,
   onSelect,
 }: CandidateDetailDrawerProps) {
@@ -91,6 +93,68 @@ export function CandidateDetailDrawer({
 
         <TagSection title="关键场景" items={candidate.key_scenarios} />
         <TagSection title="差异化优势" items={candidate.differentiators} icon={<Sparkles size={12} />} />
+
+        {candidate.capability_delta && (
+          <div className="card card-pad stack stack-3">
+            <span className="opp-section-label">
+              <Sparkles size={13} aria-hidden="true" /> 未来能力增量 Capability Delta
+            </span>
+            {novelty && (
+              <div className="row wrap row-gap-2">
+                <span className="chip chip-accent">创新门槛已通过</span>
+                <span className="chip chip-outline">
+                  与当前能力重合 {Math.round(novelty.overlap_ratio * 100)}%
+                </span>
+              </div>
+            )}
+            <Def label="创新探索向量" value={innovationVectorLabel(candidate.capability_delta.innovation_vector)} />
+            <TagSection title="今天已有的相近能力" items={candidate.capability_delta.today_equivalents} />
+            <TagSection title="真正新增的能力" items={candidate.capability_delta.new_capabilities} />
+            <Def label="为什么今天还没有" value={candidate.capability_delta.why_not_available_today} />
+            <Def label="硬件 / 系统增量" value={candidate.capability_delta.hardware_or_system_delta} />
+            <TagSection title="三年内成立的条件" items={candidate.capability_delta.enabling_changes} />
+            <TagSection title="仍需验证" items={candidate.capability_delta.proof_needed} />
+          </div>
+        )}
+
+        {candidate.strategy_alignment &&
+          (candidate.strategy_alignment.aligned_dimensions.length > 0 ||
+            candidate.strategy_alignment.rationale ||
+            candidate.strategy_alignment.tradeoffs.length > 0) && (
+            <div className="card card-pad stack stack-3">
+              <span className="opp-section-label">
+                <Compass size={13} aria-hidden="true" /> 策略取向 Strategy Alignment
+              </span>
+              {candidate.strategy_alignment.aligned_dimensions.length > 0 && (
+                <div className="row wrap row-gap-2">
+                  {candidate.strategy_alignment.aligned_dimensions.map((dimension) => (
+                    <span className="chip chip-accent" key={dimension}>
+                      {getDimensionLabel(dimension)}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {candidate.strategy_alignment.rationale && (
+                <p className="muted" style={{ fontSize: "var(--text-sm)" }}>
+                  {candidate.strategy_alignment.rationale}
+                </p>
+              )}
+              {candidate.strategy_alignment.tradeoffs.length > 0 && (
+                <div className="stack stack-2">
+                  <span className="pro-con-title con">
+                    <AlertTriangle size={12} aria-hidden="true" /> 策略代价 Tradeoffs
+                  </span>
+                  <div className="bullets">
+                    {candidate.strategy_alignment.tradeoffs.map((item, index) => (
+                      <div className="bullet" key={index} style={{ fontSize: "var(--text-sm)" }}>
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
         <div className="card card-pad stack stack-3">
           <span className="opp-section-label">
@@ -193,6 +257,19 @@ export function CandidateDetailDrawer({
       </div>
     </Drawer>
   );
+}
+
+function innovationVectorLabel(vector: NonNullable<RankedCandidate["candidate"]["capability_delta"]>["innovation_vector"]): string {
+  const labels = {
+    new_sensing: "新感知机制",
+    proactive_intervention: "主动干预",
+    distributed_architecture: "分布式协作架构",
+    resilience_recovery: "韧性与恢复",
+    trust_privacy: "信任与隐私控制",
+    human_ai_coordination: "人机协同决策",
+    new_business_delivery: "新型交付模式",
+  } as const;
+  return labels[vector];
 }
 
 function Def({ label, value }: { label: string; value: string }) {

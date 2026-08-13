@@ -4,8 +4,8 @@ import { Button } from "../../components/ui/Button";
 import { EXAMPLE_PROMPTS, type ExamplePrompt } from "./researchBrief";
 
 const REGION_LABELS: Record<string, string> = {
-  "United States": "美国",
   China: "中国",
+  "United States": "美国",
   "European Union": "欧盟",
   Global: "全球",
 };
@@ -21,6 +21,7 @@ export interface ResearchPromptProps {
   onStart: () => void;
   starting: boolean;
   canStart: boolean;
+  disabledReason?: string;
 }
 
 export function ResearchPrompt({
@@ -30,12 +31,13 @@ export function ResearchPrompt({
   onStart,
   starting,
   canStart,
+  disabledReason,
 }: ResearchPromptProps) {
   return (
     <div className="stack stack-6">
       <div className="research-input-wrap">
         <div className="research-input-label">
-          <Search size={16} aria-hidden="true" />
+          <Search size={18} aria-hidden="true" />
           你想研究 eufy Security 未来什么产品机会？
         </div>
         <textarea
@@ -54,6 +56,13 @@ export function ResearchPrompt({
           }}
         />
         <div className="research-input-foot">
+          {disabledReason ? (
+            <span className="subtle" style={{ fontSize: "var(--text-xs)" }}>
+              {disabledReason}
+            </span>
+          ) : (
+            <span />
+          )}
           <Button
             variant="primary"
             size="lg"
@@ -62,7 +71,7 @@ export function ResearchPrompt({
             disabled={!canStart || starting}
             iconEnd={<ArrowRight size={17} aria-hidden="true" />}
           >
-            {starting ? "正在启动研究..." : "开始深度研究"}
+            {starting ? "正在启动研究…" : "开始深度研究"}
           </Button>
         </div>
       </div>

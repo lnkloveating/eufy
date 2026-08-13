@@ -24,6 +24,7 @@ from eufy_security_agents.domain.models import (
     RetrievalPreview,
     RunStatus,
 )
+from eufy_security_agents.domain.strategy import strategy_presets
 
 from .dependencies import competitor_store, evidence_store, repository, workflow
 
@@ -166,6 +167,8 @@ async def forecast_options() -> dict[str, object]:
         "default_weights": ForecastRequest(
             question="Predict future AI-native eufy Security product opportunities."
         ).weights.model_dump(),
+        "default_strategy_profile": "balanced",
+        "strategy_presets": strategy_presets(),
     }
 
 

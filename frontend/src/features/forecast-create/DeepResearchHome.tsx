@@ -1,31 +1,86 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { AlertTriangle, ChevronRight, History } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 
 import type { ForecastOptions, HealthResponse } from "../../types/api";
 import { useCreateRun, useForecastOptions, useHealth } from "../../lib/queries";
-import { rememberRun } from "../../lib/recent";
+import { getRecentRun, rememberRun } from "../../lib/recent";
 import { ApiError } from "../../lib/api/client";
 import { ErrorState } from "../../components/ErrorState/ErrorState";
 import { SkeletonText } from "../../components/LoadingSkeleton/LoadingSkeleton";
 import { useToast } from "../../components/ui/Toast";
-import { AdvancedSettingsCard } from "./AdvancedSettingsCard";
-import { ClarificationDialog } from "./ClarificationDialog";
-import { RecentResearchEntry } from "./RecentResearchEntry";
-import { ResearchHomeAlerts } from "./ResearchHomeAlerts";
 import { ResearchPrompt } from "./ResearchPrompt";
-import { ResearchBriefCard } from "./ResearchBriefCard";
+import { ResearchSetupDialog } from "./ResearchSetupDialog";
 import {
-  applyClarificationAnswers,
   applyExamplePrompt,
   areWeightsValid,
   briefToRequest,
   createEmptyBrief,
-  getMissingClarifications,
-  getMissingFields,
-  type ClarificationQuestion,
+  MIN_QUESTION_LENGTH,
   type ExamplePrompt,
   type ResearchBrief,
 } from "./researchBrief";
+import {
+  createEmptySupplementalSources,
+  type SupplementalResearchSources,
+} from "./supplementalSources";
+
+function HealthAlerts({
+  backendOnline,
+  llmConfigured,
+}: {
+  backendOnline: boolean;
+  llmConfigured: boolean;
+}) {
+  return (
+    <>
+      {!backendOnline && (
+        <div className="alert alert-danger" role="alert">
+          <AlertTriangle size={18} className="alert-icon" aria-hidden="true" />
+          <div className="alert-body">
+            <span className="alert-title">后端未连接</span>
+            <span>请先启动后端服务（默认 `http://localhost:8000`），再开始研究。</span>
+          </div>
+        </div>
+      )}
+
+      {backendOnline && !llmConfigured && (
+        <div className="alert alert-warn" role="alert">
+          <AlertTriangle size={18} className="alert-icon" aria-hidden="true" />
+          <div className="alert-body">
+            <span className="alert-title">LLM 未配置</span>
+            <span>
+              后端未检测到 LLM API Key。多 Agent 研究依赖 LLM，请在后端环境变量中配置后再开始。
+            </span>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function RecentResearchEntry() {
+  const recentRun = getRecentRun();
+
+  if (!recentRun) {
+    return null;
+  }
+
+  return (
+    <Link to={`/runs/${recentRun}`} className="recent-entry">
+      <span className="row row-gap-3" style={{ minWidth: 0 }}>
+        <History size={16} aria-hidden="true" />
+        <span className="stack stack-none" style={{ minWidth: 0 }}>
+          <span className="strong">继续上次研究</span>
+          <span className="mono subtle" style={{ fontSize: "var(--text-xs)" }}>
+            {recentRun}
+          </span>
+        </span>
+      </span>
+      <ChevronRight size={16} aria-hidden="true" />
+    </Link>
+  );
+}
 
 function ResearchHomeInner({
   options,
@@ -39,47 +94,33 @@ function ResearchHomeInner({
   const createRun = useCreateRun();
 
   const [brief, setBrief] = useState<ResearchBrief>(() => createEmptyBrief(options));
-  const [phase, setPhase] = useState<"compose" | "brief">("compose");
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [clarifyOpen, setClarifyOpen] = useState(false);
-  const [clarificationReviewed, setClarificationReviewed] = useState(false);
-  const [clarifyQuestions, setClarifyQuestions] = useState<ClarificationQuestion[]>([]);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [supplementalSources, setSupplementalSources] = useState<SupplementalResearchSources>(
+    createEmptySupplementalSources,
+  );
 
   const backendOnline = Boolean(health);
   const llmConfigured = health?.llm_configured ?? false;
   const weightsOk = areWeightsValid(brief.weights);
+  const canConfigure = brief.question.trim().length >= MIN_QUESTION_LENGTH;
   const canStart = backendOnline && llmConfigured && weightsOk && !createRun.isPending;
+
+  const disabledReason = !backendOnline
+    ? "后端未连接，请先启动后端服务"
+    : !llmConfigured
+      ? "LLM 未配置，请先完成后端模型配置"
+      : !weightsOk
+        ? "评估权重需要归一化为 100%"
+        : undefined;
 
   const patchBrief = (patch: Partial<ResearchBrief>) =>
     setBrief((prev) => ({ ...prev, ...patch }));
-
-  const handleStart = () => {
-    const missing = getMissingClarifications(brief, options);
-    if (getMissingFields(brief).length > 0 || (!clarificationReviewed && missing.length > 0)) {
-      setClarifyQuestions(missing);
-      setClarifyOpen(true);
-      return;
-    }
-    setPhase("brief");
-  };
-
-  const handleClarifyConfirm = (answers: Partial<Record<ClarificationQuestion["key"], string[]>>) => {
-    const next = applyClarificationAnswers(brief, answers);
-    setBrief(next);
-    if (getMissingFields(next).length > 0) {
-      setClarifyQuestions(getMissingClarifications(next, options));
-      return;
-    }
-    setClarificationReviewed(true);
-    setClarifyOpen(false);
-    setPhase("brief");
-  };
 
   const startResearch = async () => {
     try {
       const run = await createRun.mutateAsync(briefToRequest(brief));
       rememberRun(run.id);
-      toast.success("深度研究已启动", "正在进入实时研究工作台");
+      toast.success("深度研究已启动", "正在进入实时研究工作台…");
       navigate(`/runs/${run.id}`);
     } catch (error) {
       const detail = error instanceof ApiError ? error.detail : "启动研究失败，请稍后重试。";
@@ -89,54 +130,39 @@ function ResearchHomeInner({
 
   return (
     <div className="stack stack-6">
-      {phase === "compose" ? (
-        <>
-          <ResearchPrompt
-            question={brief.question}
-            onQuestionChange={(question) => patchBrief({ question })}
-            onPickExample={(example: ExamplePrompt) =>
-              setBrief((prev) => applyExamplePrompt(prev, example))
-            }
-            onStart={handleStart}
-            starting={createRun.isPending}
-            canStart={canStart}
-          />
+      <HealthAlerts backendOnline={backendOnline} llmConfigured={llmConfigured} />
 
-          <ResearchHomeAlerts backendOnline={backendOnline} llmConfigured={llmConfigured} />
+      <ResearchPrompt
+        question={brief.question}
+        onQuestionChange={(question) => patchBrief({ question })}
+        onPickExample={(example: ExamplePrompt) =>
+          setBrief((prev) => applyExamplePrompt(prev, example))
+        }
+        onStart={() => setSetupOpen(true)}
+        starting={false}
+        canStart={canConfigure}
+        disabledReason={
+          canConfigure ? undefined : `请输入至少 ${MIN_QUESTION_LENGTH} 个字符的研究问题`
+        }
+      />
 
-          <RecentResearchEntry />
+      <RecentResearchEntry />
 
-          <AdvancedSettingsCard
-            brief={brief}
-            options={options}
-            open={showAdvanced}
-            onToggle={() => setShowAdvanced((value) => !value)}
-            onChange={patchBrief}
-          />
-        </>
-      ) : (
-        <>
-          <ResearchHomeAlerts backendOnline={backendOnline} llmConfigured={llmConfigured} />
-
-          <RecentResearchEntry />
-
-          <ResearchBriefCard
-            brief={brief}
-            regionLabel={(region) => region}
-            onEdit={() => setPhase("compose")}
-            onStart={startResearch}
-            starting={createRun.isPending}
-            canStart={canStart}
-          />
-        </>
-      )}
-
-      <ClarificationDialog
-        open={clarifyOpen}
-        questions={clarifyQuestions}
+      <ResearchSetupDialog
+        open={setupOpen}
         brief={brief}
-        onCancel={() => setClarifyOpen(false)}
-        onConfirm={handleClarifyConfirm}
+        options={options}
+        supplementalSources={supplementalSources}
+        onBriefChange={patchBrief}
+        onSupplementalSourcesChange={setSupplementalSources}
+        onClose={() => setSetupOpen(false)}
+        onStart={startResearch}
+        onAutoResearchUnavailable={() =>
+          toast.info("自动补充公开资料暂未启用", "当前研究继续使用本地知识快照。")
+        }
+        starting={createRun.isPending}
+        canStart={canStart}
+        disabledReason={disabledReason}
       />
     </div>
   );
