@@ -789,6 +789,14 @@ class AgentEvent(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
+class StageDegradation(BaseModel):
+    """Auditable record of a stage that used a bounded local fallback."""
+
+    stage: str
+    reason: str
+    failure_kind: str
+
+
 class ForecastRun(BaseModel):
     id: str
     status: RunStatus

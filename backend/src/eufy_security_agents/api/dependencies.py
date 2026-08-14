@@ -24,5 +24,6 @@ workflow = ForecastWorkflow(
     evidence_store=evidence_store,
     competitor_store=competitor_store,
     llm=llm,
+    stage_timeout_seconds=settings.stage_timeout_seconds,
     timeout_seconds=settings.workflow_timeout_seconds,
 )

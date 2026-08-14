@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 import pytest
 from pydantic import BaseModel
@@ -97,3 +99,35 @@ async def test_retry_usage_is_included_when_second_attempt_succeeds() -> None:
     assert result == SmallResponse(status="ok")
     assert metadata["input_tokens"] == 160
     assert metadata["output_tokens"] == 40
+
+
+@pytest.mark.asyncio
+async def test_logical_timeout_bounds_all_retries() -> None:
+    request_count = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        await asyncio.sleep(1)
+        return httpx.Response(200, request=request, json={})
+
+    client = OpenAICompatibleLLM(
+        api_key="test-key",
+        base_url="https://provider.invalid",
+        model_name="test-model",
+        timeout_seconds=0.01,
+        max_retries=2,
+        transport=httpx.MockTransport(handler),
+    )
+
+    with pytest.raises(LLMGenerationError) as caught:
+        await client.generate(
+            system_prompt="test",
+            user_prompt="test",
+            response_model=SmallResponse,
+            temperature=0,
+        )
+
+    assert request_count == 1
+    assert caught.value.failure_kind == "provider_timeout"
+    assert caught.value.metadata["duration_ms"] is not None

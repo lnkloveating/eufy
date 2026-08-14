@@ -6,6 +6,7 @@ StructuredLLM protocol and can be tested with a fake implementation.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from time import perf_counter
 from typing import Any, TypeVar
@@ -83,6 +84,46 @@ class OpenAICompatibleLLM:
         self._transport = transport
 
     async def generate(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        response_model: type[TModel],
+        temperature: float = 0.4,
+    ) -> tuple[TModel, dict[str, int | str | None]]:
+        """Generate within one logical-call budget, including every retry.
+
+        ``httpx`` applies its timeout to each individual request. Without this
+        outer deadline, three attempts configured at 120 seconds could occupy a
+        workflow stage for roughly six minutes. The public timeout is therefore
+        the total budget for the logical generation, not a multiplier.
+        """
+
+        started = perf_counter()
+        try:
+            async with asyncio.timeout(self._timeout):
+                return await self._generate_with_retries(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    response_model=response_model,
+                    temperature=temperature,
+                )
+        except TimeoutError as exc:
+            duration_ms = round((perf_counter() - started) * 1_000)
+            raise LLMGenerationError(
+                f"structured LLM generation exceeded {self._timeout:g} seconds",
+                failure_kind="provider_timeout",
+                attempts=self._max_retries + 1,
+                detail="logical generation deadline exceeded across all attempts",
+                metadata={
+                    "model_name": self.model_name,
+                    "input_tokens": None,
+                    "output_tokens": None,
+                    "duration_ms": duration_ms,
+                },
+            ) from exc
+
+    async def _generate_with_retries(
         self,
         *,
         system_prompt: str,

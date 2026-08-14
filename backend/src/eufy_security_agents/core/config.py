@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = 120.0
     llm_max_retries: int = 2
     llm_max_output_tokens: int = 6_000
+    stage_timeout_seconds: float = 75.0
     workflow_timeout_seconds: float = 900.0
     cors_origins: list[str] = ["http://localhost:5173"]
 

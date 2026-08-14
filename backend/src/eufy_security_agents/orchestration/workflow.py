@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 from collections import defaultdict
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from time import monotonic
-from typing import Any
+from typing import Any, TypeVar
 from uuid import uuid4
 
 from eufy_security_agents.agents import (
@@ -31,12 +32,18 @@ from eufy_security_agents.domain.models import (
     AgentEvent,
     AnswerMode,
     Artifact,
+    BusinessModel,
     CandidateNoveltyAssessment,
     CandidatePairSimilarity,
     CandidateReview,
+    CapabilityDelta,
     CompetitiveAnalysis,
     CompetitiveGap,
+    CompetitivePositioning,
     CompetitorRecord,
+    ConsensusClaim,
+    CrossLensChallenge,
+    CurrentCapability,
     CurrentCapabilityBaseline,
     DefinitionStatus,
     EpistemicStatus,
@@ -69,11 +76,17 @@ from eufy_security_agents.domain.models import (
     ProductSuggestedChange,
     QuestionCategory,
     RankedCandidate,
+    RegionalFit,
     RetrievalPlan,
+    RiskItem,
     RunStatus,
     SelectionStatus,
+    StageDegradation,
+    StrategyAlignment,
     SuggestionDisposition,
     SuggestionResolution,
+    TrendSignal,
+    ValidationHypothesis,
 )
 from eufy_security_agents.domain.ports import RunRepository, StructuredLLM
 from eufy_security_agents.domain.product_workbench import (
@@ -97,7 +110,9 @@ from eufy_security_agents.domain.strategy import (
 )
 from eufy_security_agents.infrastructure.competitors import LocalCompetitorStore
 from eufy_security_agents.infrastructure.evidence import LocalEvidenceStore
-from eufy_security_agents.infrastructure.llm import LLMGenerationError
+from eufy_security_agents.infrastructure.llm import LLMConfigurationError, LLMGenerationError
+
+TStage = TypeVar("TStage")
 
 
 class DefinitionNotReadyError(RuntimeError):
@@ -159,6 +174,7 @@ class ForecastWorkflow:
         competitor_store: LocalCompetitorStore,
         llm: StructuredLLM,
         timeout_seconds: float = 900,
+        stage_timeout_seconds: float = 75,
         heartbeat_seconds: float = 10,
     ) -> None:
         self._repository = repository
@@ -166,6 +182,7 @@ class ForecastWorkflow:
         self._competitor_store = competitor_store
         self._llm = llm
         self._timeout_seconds = timeout_seconds
+        self._stage_timeout_seconds = stage_timeout_seconds
         self._heartbeat_seconds = heartbeat_seconds
 
     def create(self, request: ForecastRequest) -> str:
@@ -237,6 +254,91 @@ class ForecastWorkflow:
                 },
             )
 
+    async def _run_stage_with_fallback(
+        self,
+        run_id: str,
+        stage: str,
+        operation: Callable[[], Awaitable[TStage]],
+        fallback: Callable[[BaseException], TStage],
+        *,
+        validate: Callable[[TStage], None] | None = None,
+    ) -> TStage:
+        """Run one stage inside a hard budget and recover from model-output failures.
+
+        The stage owns the deadline. Nested provider and semantic retries may use
+        the budget, but can never extend it. Only known external/model-output
+        failures are degraded; programming and persistence errors still surface.
+        """
+
+        try:
+            async with asyncio.timeout(self._stage_timeout_seconds):
+                value = await operation()
+                if validate is not None:
+                    validate(value)
+                return value
+        except Exception as exc:
+            if not self._is_recoverable_stage_error(exc):
+                raise
+            value = fallback(exc)
+            if validate is not None:
+                validate(value)
+            self._record_stage_degradation(run_id, stage, exc)
+            return value
+
+    @staticmethod
+    def _is_recoverable_stage_error(exc: BaseException) -> bool:
+        if isinstance(
+            exc,
+            (TimeoutError, LLMConfigurationError, LLMGenerationError, ValueError),
+        ):
+            return True
+        return isinstance(exc, RuntimeError) and "exhausted" in str(exc).casefold()
+
+    def _record_stage_degradation(
+        self, run_id: str, stage: str, exc: BaseException
+    ) -> None:
+        if isinstance(exc, TimeoutError):
+            failure_kind = "stage_timeout"
+            reason = (
+                f"{stage} 超过 {self._stage_timeout_seconds:g} 秒阶段预算，"
+                "已切换到本地确定性降级结果"
+            )
+        elif isinstance(exc, LLMGenerationError):
+            failure_kind = exc.failure_kind
+            reason = f"{stage} 模型调用不可用（{failure_kind}），已使用本地确定性降级结果"
+        elif isinstance(exc, LLMConfigurationError):
+            failure_kind = "llm_configuration"
+            reason = f"{stage} 模型配置不可用，已使用本地确定性降级结果"
+        else:
+            failure_kind = type(exc).__name__
+            detail = str(exc).strip()[:120]
+            reason = f"{stage} 输出未通过校验，已使用本地确定性降级结果"
+            if detail:
+                reason = f"{reason}：{detail}"
+        degradation = StageDegradation(
+            stage=stage,
+            reason=reason,
+            failure_kind=failure_kind,
+        )
+        self._emit(
+            run_id,
+            "stage_degraded",
+            None,
+            reason,
+            degradation.model_dump(mode="json"),
+        )
+
+    def _recorded_stage_degradations(self, run_id: str) -> list[dict[str, str]]:
+        records: list[dict[str, str]] = []
+        for event in self._repository.list_events(run_id):
+            if event.event_type != "stage_degraded":
+                continue
+            stage = event.payload.get("stage")
+            reason = event.payload.get("reason")
+            if isinstance(stage, str) and isinstance(reason, str):
+                records.append({"stage": stage, "reason": reason})
+        return records
+
     async def _execute_pipeline(self, run_id: str) -> None:
         run = self._repository.get_run(run_id)
         if run is None:
@@ -282,16 +384,26 @@ class ForecastWorkflow:
             )
 
             self._repository.update_run(run_id, stage="future_forecasting")
-            forecasts = await self._run_futures_panel(run_id, run.request, evidence)
-            self._validate_forecasts(forecasts, evidence)
+            forecasts = await self._run_stage_with_fallback(
+                run_id,
+                "future_forecasting",
+                lambda: self._run_futures_panel(run_id, run.request, evidence),
+                lambda _exc: self._fallback_forecasts(run.request, evidence),
+                validate=lambda value: self._validate_forecasts(value, evidence),
+            )
             self._save(run_id, "lens_forecasts", "futures-panel", forecasts)
 
             self._repository.update_run(run_id, stage="forecast_deliberation")
             deliberation_evidence = self._referenced_evidence(forecasts, evidence)
-            deliberations = await self._run_deliberation_panel(
-                run_id, run.request, forecasts, deliberation_evidence
+            deliberations = await self._run_stage_with_fallback(
+                run_id,
+                "forecast_deliberation",
+                lambda: self._run_deliberation_panel(
+                    run_id, run.request, forecasts, deliberation_evidence
+                ),
+                lambda _exc: self._fallback_deliberations(forecasts, deliberation_evidence),
+                validate=lambda value: self._validate_deliberations(value, evidence),
             )
-            self._validate_deliberations(deliberations, evidence)
             self._save(
                 run_id,
                 "lens_deliberations",
@@ -300,14 +412,19 @@ class ForecastWorkflow:
             )
 
             self._repository.update_run(run_id, stage="consensus_formation")
-            consensus = await self._run_consensus(
+            consensus = await self._run_stage_with_fallback(
                 run_id,
-                run.request,
-                forecasts,
-                deliberations,
-                deliberation_evidence,
+                "consensus_formation",
+                lambda: self._run_consensus(
+                    run_id,
+                    run.request,
+                    forecasts,
+                    deliberations,
+                    deliberation_evidence,
+                ),
+                lambda _exc: self._fallback_consensus(forecasts, evidence),
+                validate=lambda value: self._validate_consensus(value, evidence),
             )
-            self._validate_consensus(consensus, evidence)
             self._save(run_id, "forecast_consensus", "forecast-consensus", consensus)
             self._emit(
                 run_id,
@@ -323,15 +440,20 @@ class ForecastWorkflow:
             )
 
             self._repository.update_run(run_id, stage="opportunity_synthesis")
-            opportunities = await self._run_opportunity_synthesis(
+            opportunities = await self._run_stage_with_fallback(
                 run_id,
-                run.request,
-                evidence,
-                forecasts,
-                deliberations,
-                consensus,
+                "opportunity_synthesis",
+                lambda: self._run_opportunity_synthesis(
+                    run_id,
+                    run.request,
+                    evidence,
+                    forecasts,
+                    deliberations,
+                    consensus,
+                ),
+                lambda _exc: self._fallback_opportunities(run.request, evidence, consensus),
+                validate=lambda value: self._validate_opportunities(value, evidence),
             )
-            self._validate_opportunities(opportunities, evidence)
             self._save(run_id, "opportunities", "opportunity-synthesizer", opportunities)
             self._emit(
                 run_id,
@@ -349,11 +471,18 @@ class ForecastWorkflow:
                 "local-competitor-store",
                 competitor_evidence,
             )
-            competitive_analysis = await self._run_competitor_analysis(
-                run_id, run.request, opportunities, competitor_evidence
-            )
-            self._validate_competitive_analysis(
-                competitive_analysis, opportunities, competitor_evidence
+            competitive_analysis = await self._run_stage_with_fallback(
+                run_id,
+                "competitor_analysis",
+                lambda: self._run_competitor_analysis(
+                    run_id, run.request, opportunities, competitor_evidence
+                ),
+                lambda exc: self._fallback_competitive_analysis(
+                    run.request, opportunities, competitor_evidence, exc
+                ),
+                validate=lambda value: self._validate_competitive_analysis(
+                    value, opportunities, competitor_evidence
+                ),
             )
             self._save(
                 run_id,
@@ -379,9 +508,23 @@ class ForecastWorkflow:
             )
 
             self._repository.update_run(run_id, stage="current_capability_audit")
-            current_baseline = await self._run_current_capability_baseline(
-                run_id, run.request
+            current_capability_evidence = self._current_capability_evidence()
+            current_baseline = await self._run_stage_with_fallback(
+                run_id,
+                "current_capability_audit",
+                lambda: self._run_current_capability_baseline(run_id, run.request),
+                lambda _exc: self._fallback_current_baseline(current_capability_evidence),
+                validate=lambda value: self._validate_current_baseline(
+                    value, current_capability_evidence
+                ),
             )
+            if self._repository.get_artifact(run_id, "current_capability_evidence") is None:
+                self._save(
+                    run_id,
+                    "current_capability_evidence",
+                    "local-evidence-store",
+                    current_capability_evidence,
+                )
             self._save(
                 run_id,
                 "current_capability_baseline",
@@ -390,30 +533,35 @@ class ForecastWorkflow:
             )
 
             self._repository.update_run(run_id, stage="candidate_generation")
-            candidates = await self._run_product_architect(
+            candidates = await self._run_stage_with_fallback(
                 run_id,
-                run.request,
-                evidence,
-                opportunities,
-                competitive_analysis,
-                competitor_evidence,
-                current_baseline,
+                "candidate_generation",
+                lambda: self._run_product_architect(
+                    run_id,
+                    run.request,
+                    evidence,
+                    opportunities,
+                    competitive_analysis,
+                    competitor_evidence,
+                    current_baseline,
+                ),
+                lambda _exc: self._fallback_candidates(
+                    run.request, evidence, opportunities, competitor_evidence
+                ),
+                validate=lambda value: self._validate_candidates(
+                    value,
+                    opportunities,
+                    evidence,
+                    run.request.candidate_count,
+                    competitor_evidence,
+                ),
             )
 
             self._repository.update_run(run_id, stage="novelty_audit")
-            candidates, novelty_audit = await self._run_novelty_gate(
+            candidates, novelty_audit = await self._run_stage_with_fallback(
                 run_id,
-                run.request,
-                evidence,
-                opportunities,
-                competitive_analysis,
-                competitor_evidence,
-                current_baseline,
-                candidates,
-            )
-            self._repository.update_run(run_id, stage="portfolio_diversity_audit")
-            candidates, novelty_audit, portfolio_diversity_audit = (
-                await self._run_portfolio_diversity_gate(
+                "novelty_audit",
+                lambda: self._run_novelty_gate(
                     run_id,
                     run.request,
                     evidence,
@@ -422,7 +570,33 @@ class ForecastWorkflow:
                     competitor_evidence,
                     current_baseline,
                     candidates,
-                    novelty_audit,
+                ),
+                lambda _exc: (
+                    candidates,
+                    self._fallback_novelty_audit(candidates, current_baseline),
+                ),
+            )
+            self._repository.update_run(run_id, stage="portfolio_diversity_audit")
+            candidates, novelty_audit, portfolio_diversity_audit = (
+                await self._run_stage_with_fallback(
+                    run_id,
+                    "portfolio_diversity_audit",
+                    lambda: self._run_portfolio_diversity_gate(
+                        run_id,
+                        run.request,
+                        evidence,
+                        opportunities,
+                        competitive_analysis,
+                        competitor_evidence,
+                        current_baseline,
+                        candidates,
+                        novelty_audit,
+                    ),
+                    lambda exc: (
+                        candidates,
+                        novelty_audit,
+                        self._fallback_portfolio_audit(candidates, exc),
+                    ),
                 )
             )
             self._save(
@@ -447,8 +621,16 @@ class ForecastWorkflow:
             )
 
             self._repository.update_run(run_id, stage="candidate_review")
-            reviews, available_dimensions = await self._run_review_panel(
-                run_id, run.request, evidence, candidates, competitor_evidence
+            reviews, available_dimensions = await self._run_stage_with_fallback(
+                run_id,
+                "candidate_review",
+                lambda: self._run_review_panel(
+                    run_id, run.request, evidence, candidates, competitor_evidence
+                ),
+                lambda _exc: (
+                    self._fallback_reviews(candidates),
+                    list(REVIEW_DIMENSIONS),
+                ),
             )
             ranked = self._rank_candidates(run.request, candidates, reviews)
             self._save(run_id, "ranked_candidates", "blind-review-panel", ranked)
@@ -479,6 +661,9 @@ class ForecastWorkflow:
                 novelty_audit=novelty_audit,
                 portfolio_diversity_audit=portfolio_diversity_audit,
                 missing_dimensions=missing_dimensions,
+            )
+            degradations = self._merge_degradations(
+                degradations, self._recorded_stage_degradations(run_id)
             )
             self._repository.update_run(
                 run_id, status=RunStatus.COMPLETED, stage="awaiting_product_selection"
@@ -600,17 +785,32 @@ class ForecastWorkflow:
         )
         agent = ProductDefinitionAgent(self._llm)
         try:
-            output = await agent.run(
-                run_id=run_id,
-                request=result.run.request,
-                evidence=result.evidence,
-                ranked_candidate=ranked,
-                selection=selection,
-                competitive_analysis=result.competitive_analysis,
-                competitor_evidence=result.competitor_evidence,
+            async def generate_product() -> tuple[ProductSpec, AgentOutput[Any] | None]:
+                generated = await agent.run(
+                    run_id=run_id,
+                    request=result.run.request,
+                    evidence=result.evidence,
+                    ranked_candidate=ranked,
+                    selection=selection,
+                    competitive_analysis=result.competitive_analysis,
+                    competitor_evidence=result.competitor_evidence,
+                )
+                return generated.value.product, generated
+
+            product, output = await self._run_stage_with_fallback(
+                run_id,
+                "product_definition",
+                generate_product,
+                lambda _exc: (
+                    self._fallback_product_spec(
+                        run_id, result.run.request, ranked, selection
+                    ),
+                    None,
+                ),
+                validate=lambda value: self._validate_product(
+                    value[0], result.evidence, result.competitor_evidence
+                ),
             )
-            product = output.value.product
-            self._validate_product(product, result.evidence, result.competitor_evidence)
             self._repository.save_product(product)
             self._save(
                 run_id,
@@ -2574,6 +2774,470 @@ class ForecastWorkflow:
         return [item.model_copy(update={"rank": index}) for index, item in enumerate(ranked, 1)]
 
     @staticmethod
+    def _fallback_forecasts(
+        request: ForecastRequest, evidence: list[EvidenceRecord]
+    ) -> list[LensForecast]:
+        records = evidence[:2]
+        lens_labels = {
+            "user_trends": "用户需求",
+            "technology_trends": "技术演进",
+            "security_futures": "安全风险",
+            "market_futures": "市场变化",
+        }
+        forecasts: list[LensForecast] = []
+        for lens in FORECAST_LENSES:
+            signals: list[TrendSignal] = []
+            for index in range(2):
+                record = records[index] if index < len(records) else None
+                signals.append(
+                    TrendSignal(
+                        title=(record.title if record else f"{lens_labels[lens]}信号 {index + 1}"),
+                        description=(
+                            record.content[:280]
+                            if record
+                            else "本地资料不足，需在后续用户研究中验证该趋势。"
+                        ),
+                        impact_horizon=f"1-{request.forecast_horizon_years} years",
+                        evidence_ids=[record.id] if record else [],
+                        confidence=0.55 if record else 0.3,
+                        uncertainty="该结论来自本地证据归纳，尚未经过本轮模型交叉验证。",
+                    )
+                )
+            forecasts.append(
+                LensForecast(
+                    lens=lens,
+                    thesis=f"从{lens_labels[lens]}视角看，{request.question.strip()}",
+                    signals=signals,
+                    implications=[
+                        "优先验证真实家庭场景中的可感知用户价值。",
+                        "在进入量产决策前验证隐私、可靠性与成本边界。",
+                    ],
+                )
+            )
+        return forecasts
+
+    @staticmethod
+    def _fallback_deliberations(
+        forecasts: list[LensForecast], evidence: list[EvidenceRecord]
+    ) -> list[LensDeliberation]:
+        evidence_ids = [item.id for item in evidence[:1]]
+        deliberations: list[LensDeliberation] = []
+        for index, forecast in enumerate(forecasts):
+            target = forecasts[(index + 1) % len(forecasts)].lens
+            deliberations.append(
+                LensDeliberation(
+                    reviewer_lens=forecast.lens,
+                    original_thesis=forecast.thesis,
+                    challenges=[
+                        CrossLensChallenge(
+                            id=f"CH-{index + 1:03d}",
+                            target_lens=target,
+                            challenged_claim="趋势能直接转化为稳定的消费者采用。",
+                            challenge_reason="本地证据能说明方向，但不能替代采用率实测。",
+                            evidence_ids=evidence_ids,
+                            severity="medium",
+                        )
+                    ],
+                    revisions_to_own_view=["降低未经实测的采用率与效果置信度。"],
+                    unchanged_positions=["保留隐私、本地处理和可靠性优先原则。"],
+                    unresolved_questions=["目标用户是否愿意为该结果改变现有行为？"],
+                    revised_thesis=forecast.thesis,
+                    revised_confidence=0.5,
+                )
+            )
+        return deliberations
+
+    @staticmethod
+    def _fallback_consensus(
+        forecasts: list[LensForecast], evidence: list[EvidenceRecord]
+    ) -> ForecastConsensus:
+        claims: list[ConsensusClaim] = []
+        for index in range(2):
+            forecast = forecasts[index % len(forecasts)]
+            signal = forecast.signals[index % len(forecast.signals)]
+            claims.append(
+                ConsensusClaim(
+                    claim=signal.description,
+                    supporting_lenses=list(dict.fromkeys([forecast.lens, forecasts[-1].lens])),
+                    evidence_ids=signal.evidence_ids,
+                    confidence=min(signal.confidence, 0.55),
+                )
+            )
+        return ForecastConsensus(
+            consensus_claims=claims,
+            minority_views=["模型交叉审议不可用，本结论仅代表本地证据的保守归纳。"],
+            evidence_gaps=["缺少本轮独立模型共识，需要通过用户研究和原型测试复核。"],
+            opportunity_implications=[
+                "围绕可验证的家庭安全任务构建最小产品实验。",
+                "优先验证误报、隐私接受度、安装成本和付费意愿。",
+            ],
+            missing_lenses=[],
+        )
+
+    @staticmethod
+    def _fallback_opportunities(
+        request: ForecastRequest,
+        evidence: list[EvidenceRecord],
+        consensus: ForecastConsensus,
+    ) -> list[Opportunity]:
+        names = [
+            "更早识别家庭风险",
+            "弱网与断网持续防护",
+            "隐私优先的室内理解",
+            "跨设备协同处置",
+            "低维护的家庭安全服务",
+        ]
+        records: list[EvidenceRecord | None] = [*evidence] or [None]
+        opportunities: list[Opportunity] = []
+        for index, name in enumerate(names, 1):
+            record = records[(index - 1) % len(records)]
+            evidence_ids = [record.id] if record is not None else []
+            implication = consensus.opportunity_implications[
+                (index - 1) % len(consensus.opportunity_implications)
+            ]
+            opportunities.append(
+                Opportunity(
+                    id=f"OPP-{index:03d}",
+                    title=name,
+                    unmet_job=f"家庭希望在不增加持续操作负担的情况下实现{name}。",
+                    target_users=request.target_users,
+                    target_regions=request.regions,
+                    why_now=implication,
+                    opportunity_window=f"1-{request.forecast_horizon_years} years",
+                    enabling_trends=["端侧 AI", "多传感器融合", "低功耗连接"],
+                    evidence_ids=evidence_ids,
+                    counter_evidence=["实际效果、安装摩擦和付费意愿仍需验证。"],
+                    confidence=0.5 if evidence_ids else 0.3,
+                    regional_differences={
+                        region: ["需进行本地法规与家庭场景验证"]
+                        for region in request.regions
+                    },
+                )
+            )
+        return opportunities
+
+    def _current_capability_evidence(self) -> list[EvidenceRecord]:
+        return [
+            item
+            for item in self._evidence_store.load()
+            if item.layer == KnowledgeLayer.EUFY_FOUNDATION
+            or item.evidence_type in {"current_product", "current_capability", "brand_strategy"}
+        ]
+
+    @staticmethod
+    def _fallback_current_baseline(
+        evidence: list[EvidenceRecord],
+    ) -> CurrentCapabilityBaseline:
+        capabilities: list[CurrentCapability] = []
+        for index in range(3):
+            record = evidence[index] if index < len(evidence) else None
+            capabilities.append(
+                CurrentCapability(
+                    id=f"CAP-{index + 1:03d}",
+                    capability=(record.title if record else f"当前能力基线 {index + 1}"),
+                    existing_products=[record.source_name] if record else ["现有 eufy 产品组合"],
+                    form_factors=["camera", "sensor", "hub"][index : index + 1],
+                    evidence_ids=[record.id] if record else [],
+                )
+            )
+        return CurrentCapabilityBaseline(
+            summary="基于本地 eufy 资料建立的保守能力基线。",
+            capabilities=capabilities,
+            combination_warning_signs=["仅重组现有摄像、传感和通知能力，不构成独立创新。"],
+        )
+
+    def _fallback_competitive_analysis(
+        self,
+        request: ForecastRequest,
+        opportunities: list[Opportunity],
+        competitor_evidence: list[CompetitorRecord],
+        exc: BaseException,
+    ) -> CompetitiveAnalysis:
+        relevant = self._select_relevant_competitors(
+            request, opportunities, competitor_evidence, limit=8
+        )
+        reason = f"模型竞品分析不可用（{type(exc).__name__}），已改用官方竞品资料归纳"
+        return self._degraded_competitive_analysis(request, opportunities, relevant, reason)
+
+    @staticmethod
+    def _fallback_candidates(
+        request: ForecastRequest,
+        evidence: list[EvidenceRecord],
+        opportunities: list[Opportunity],
+        competitor_evidence: list[CompetitorRecord],
+    ) -> list[ProductCandidate]:
+        product_names = [
+            "Edge Sentinel",
+            "SafePath Beacon",
+            "Resilience Mesh",
+            "Privacy Guardian",
+            "Care Signal Hub",
+            "Home Response Node",
+            "Trust Access Kit",
+            "Boundary Sense",
+            "QuietWatch Relay",
+            "Family Safety Link",
+        ]
+        form_factors = [
+            "wall-mounted ambient sensor",
+            "portable safety beacon",
+            "distributed resilience nodes",
+            "privacy-first indoor hub",
+            "tabletop care signal hub",
+            "home response controller",
+            "modular access kit",
+            "outdoor boundary sensor",
+            "low-power relay node",
+            "wearable and home bridge",
+        ]
+        evidence_ids = [item.id for item in evidence[:2]]
+        alternatives = [item.product_name for item in competitor_evidence[:2]] or [
+            "current camera and alarm systems"
+        ]
+        competitor_ids = [item.id for item in competitor_evidence[:2]]
+        vectors = list(InnovationVector)
+        candidates: list[ProductCandidate] = []
+        for index in range(request.candidate_count):
+            opportunity = opportunities[index % len(opportunities)]
+            vector = vectors[index % len(vectors)]
+            name = f"eufy {product_names[index % len(product_names)]} {index + 1}"
+            regional_fit = [
+                RegionalFit(
+                    region=region,
+                    fit_reasons=["面向该地区的家庭安全与低维护需求"],
+                    required_adaptations=["验证当地法规、住宅结构和通知偏好"],
+                    evidence_ids=evidence_ids,
+                    confidence=0.45,
+                )
+                for region in request.regions
+            ]
+            candidates.append(
+                ProductCandidate(
+                    id=f"CAND-{index + 1:03d}",
+                    name=name,
+                    tagline=f"面向{opportunity.title}的可验证 AI 原生硬件概念",
+                    opportunity_ids=[opportunity.id],
+                    target_users=opportunity.target_users,
+                    target_regions=opportunity.target_regions,
+                    core_problem=opportunity.unmet_job,
+                    value_proposition="以端侧多信号理解降低操作负担，并把高影响动作保留给用户确认。",
+                    form_factor=form_factors[index % len(form_factors)],
+                    hardware_components=["low-power sensor", "edge processor", "secure radio"],
+                    ai_native_mechanism="端侧模型融合环境、设备和用户上下文，输出可解释的风险判断。",
+                    key_scenarios=[opportunity.title, "断网条件下的本地安全响应"],
+                    differentiators=["本地优先", "跨传感器上下文", "无强制订阅的核心能力"],
+                    estimated_price_range="$99-$249",
+                    technical_dependencies=["低功耗端侧 AI", "安全设备协同协议"],
+                    key_assumptions=["用户能感知该任务相对现有通知的增量价值"],
+                    kill_criteria=["实测不能显著降低误报或处置时间"],
+                    evidence_ids=evidence_ids,
+                    regional_fit=regional_fit,
+                    competitive_positioning=CompetitivePositioning(
+                        closest_alternatives=alternatives,
+                        borrowed_patterns=["本地中枢与模块化传感器"],
+                        defensible_differences=["围绕不同用户任务设计的端侧多信号决策闭环"],
+                        non_copycat_rationale="产品以可验证的用户结果为起点，不是为现有设备增加单一功能。",
+                        copycat_risks=["成熟厂商可能复制其中的软件编排能力"],
+                        competitor_evidence_ids=competitor_ids,
+                        validation_questions=["相较最佳现有替代方案，是否显著改善目标任务？"],
+                    ),
+                    strategy_alignment=StrategyAlignment(
+                        aligned_dimensions=strategy_dominant_dimensions(request.weights),
+                        rationale="按用户选择的策略权重优先验证价值、可行性与差异化。",
+                        tradeoffs=["概念完整度来自本地回退，需补充模型与人工复核。"],
+                    ),
+                    capability_delta=CapabilityDelta(
+                        today_equivalents=alternatives,
+                        new_capabilities=[f"以 {vector.value} 机制完成{opportunity.title}"],
+                        why_not_available_today="所需端侧模型、低功耗传感与跨设备可靠协同尚未共同成熟。",
+                        enabling_changes=["模型压缩", "传感器成本下降", "设备协议标准化"],
+                        proof_needed=["现场准确率", "误报改善", "安装完成率"],
+                        hardware_or_system_delta=f"采用 {vector.value} 的专用硬件与系统闭环。",
+                        innovation_vector=vector,
+                    ),
+                )
+            )
+        return candidates
+
+    @staticmethod
+    def _fallback_novelty_audit(
+        candidates: list[ProductCandidate], baseline: CurrentCapabilityBaseline
+    ) -> NoveltyAudit:
+        capability_ids = [item.id for item in baseline.capabilities[:1]]
+        return NoveltyAudit(
+            assessments=[
+                CandidateNoveltyAssessment(
+                    candidate_id=candidate.id,
+                    classification=NoveltyClassification.ADJACENT_INNOVATION,
+                    overlap_ratio=0.5,
+                    overlapping_capability_ids=capability_ids,
+                    genuinely_new_capabilities=(
+                        candidate.capability_delta.new_capabilities
+                        or [candidate.capability_delta.hardware_or_system_delta]
+                    ),
+                    why_not_available_today_is_credible=True,
+                    hardware_or_system_delta_is_meaningful=True,
+                    innovation_vector_is_credible=True,
+                    reasons=["模型审计不可用；候选具备明确的新能力、使能变化和验证要求。"],
+                    regeneration_brief="需在人工评审中复核与现有产品的语义重合。",
+                    passes_gate=True,
+                )
+                for candidate in candidates
+            ],
+            requested_candidate_count=len(candidates),
+            returned_candidate_count=len(candidates),
+        )
+
+    @staticmethod
+    def _fallback_portfolio_audit(
+        candidates: list[ProductCandidate], exc: BaseException
+    ) -> PortfolioDiversityAudit:
+        pairs = [
+            CandidatePairSimilarity(
+                candidate_a_id=left.id,
+                candidate_b_id=right.id,
+                similarity_score=0.35,
+                shared_user_jobs=[],
+                shared_product_mechanisms=[],
+                meaningful_differences=[
+                    f"{left.form_factor} 与 {right.form_factor} 的形态和主要机会不同"
+                ],
+                duplicate=False,
+                regeneration_brief="需在人工组合评审中复核。",
+            )
+            for index, left in enumerate(candidates)
+            for right in candidates[index + 1 :]
+        ]
+        return PortfolioDiversityAudit(
+            pair_assessments=pairs,
+            degraded=True,
+            degradation_reason=f"组合语义审计不可用（{type(exc).__name__}），已保留结构差异明确的候选",
+        )
+
+    @staticmethod
+    def _fallback_reviews(candidates: list[ProductCandidate]) -> list[CandidateReview]:
+        reviews: list[CandidateReview] = []
+        for dimension_index, dimension in enumerate(REVIEW_DIMENSIONS):
+            for candidate_index, candidate in enumerate(candidates):
+                score = max(55.0, 82.0 - candidate_index * 2 + dimension_index % 3)
+                reviews.append(
+                    CandidateReview(
+                        candidate_id=candidate.id,
+                        dimension=dimension,
+                        score=score,
+                        strengths=["问题、系统差异和验证边界均有结构化描述。"],
+                        concerns=["该分数来自确定性回退，需要人工和用户研究复核。"],
+                        decisive_question="目标用户是否认可相对现有替代方案的增量价值？",
+                    )
+                )
+        return reviews
+
+    @staticmethod
+    def _fallback_product_spec(
+        run_id: str,
+        request: ForecastRequest,
+        ranked: RankedCandidate,
+        selection: ProductSelectionRequest,
+    ) -> ProductSpec:
+        candidate = ranked.candidate
+        assumptions = list(candidate.key_assumptions)
+        assumptions.extend(
+            f"用户要求：{change}" for change in selection.requested_changes if change.strip()
+        )
+        hypotheses = [
+            ValidationHypothesis(
+                id="H-001",
+                assumption="目标用户能感知该产品相对现有替代方案的增量价值。",
+                metric="concept preference and willingness to pay",
+                proposed_method="moderated concept test",
+                pass_condition="目标用户偏好和付费意愿达到项目预设门槛",
+                kill_condition="多数目标用户认为现有方案已经足够",
+            ),
+            ValidationHypothesis(
+                id="H-002",
+                assumption="端侧多信号判断可以降低误报并缩短处置时间。",
+                metric="false-positive rate and time-to-action",
+                proposed_method="scenario simulation and instrumented prototype",
+                pass_condition="相较基线显著降低误报或处置时间",
+                kill_condition="改善不足以抵消新增硬件与安装成本",
+            ),
+            ValidationHypothesis(
+                id="H-003",
+                assumption="隐私边界和安装流程能被家庭成员接受。",
+                metric="installation completion and privacy acceptance",
+                proposed_method="in-home pilot",
+                pass_condition="完成率与接受度达到项目预设门槛",
+                kill_condition="持续出现无法缓解的隐私或安装阻力",
+            ),
+        ]
+        return ProductSpec(
+            id=f"product-{uuid4().hex[:12]}",
+            source_run_id=run_id,
+            source_candidate_id=candidate.id,
+            name=candidate.name,
+            one_sentence_definition=candidate.tagline,
+            category=request.category,
+            target_users=candidate.target_users,
+            target_regions=candidate.target_regions,
+            core_problem=candidate.core_problem,
+            value_proposition=candidate.value_proposition,
+            form_factor=candidate.form_factor,
+            hardware_architecture=candidate.hardware_components,
+            ai_capabilities=[candidate.ai_native_mechanism],
+            ai_decision_boundary="模型仅提供风险判断和低影响自动化；高影响设备动作必须经过明确策略或用户确认。",
+            user_journeys=[
+                f"安装并完成 {candidate.form_factor} 的隐私与区域配置",
+                *candidate.key_scenarios,
+                "收到可解释提醒并确认或调整系统响应",
+            ],
+            ecosystem_relationships=["HomeBase", "eufy Security app", "local device mesh"],
+            privacy_principles=["数据最小化", "默认本地处理", "敏感动作可审计且可撤销"],
+            business_model=BusinessModel(
+                hardware_revenue=f"{candidate.estimated_price_range} 的一次性硬件销售",
+                recurring_revenue="仅提供可选增值服务，不锁定核心安全能力",
+                ecosystem_pull_through=["HomeBase", "兼容的 eufy 传感与执行设备"],
+                cost_drivers=candidate.hardware_components,
+            ),
+            risks=[
+                RiskItem(
+                    category="technical",
+                    risk="多信号模型在真实家庭中的准确性不足",
+                    mitigation="通过分阶段原型和现场数据验证，并保留人工确认边界",
+                    severity="high",
+                ),
+                RiskItem(
+                    category="privacy",
+                    risk="家庭成员不接受持续环境理解",
+                    mitigation="端侧处理、可见状态、区域屏蔽和数据最小化",
+                    severity="high",
+                ),
+            ],
+            key_assumptions=assumptions,
+            kill_criteria=candidate.kill_criteria,
+            evidence_ids=candidate.evidence_ids,
+            validation_readiness=hypotheses,
+            regional_fit=candidate.regional_fit,
+            competitive_positioning=candidate.competitive_positioning,
+            capability_delta=candidate.capability_delta,
+            human_selection_reason=selection.selection_reason,
+        )
+
+    @staticmethod
+    def _merge_degradations(
+        *groups: list[dict[str, str]],
+    ) -> list[dict[str, str]]:
+        merged: list[dict[str, str]] = []
+        seen: set[str] = set()
+        for group in groups:
+            for item in group:
+                stage = item["stage"]
+                if stage in seen:
+                    continue
+                seen.add(stage)
+                merged.append(item)
+        return merged
+
+    @staticmethod
     def _collect_degradations(
         *,
         competitive_analysis: CompetitiveAnalysis | None,
@@ -2677,6 +3341,8 @@ class ForecastWorkflow:
             )
         if len(returned_lenses) != len(deliberations):
             raise ValueError("deliberation panel returned duplicate lenses")
+        if not returned_lenses:
+            raise ValueError("deliberation panel returned no valid reviews")
         evidence_ids = {item.id for item in evidence}
         cited = {
             evidence_id

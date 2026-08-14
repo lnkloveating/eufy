@@ -23,6 +23,7 @@ export const KNOWN_EVENT_TYPES = [
   "agent_started",
   "agent_completed",
   "agent_unavailable",
+  "stage_degraded",
   "llm_call_retrying",
   "llm_call_heartbeat",
   "consensus_completed",
