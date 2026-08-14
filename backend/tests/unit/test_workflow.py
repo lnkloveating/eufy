@@ -647,7 +647,7 @@ async def test_candidate_generation_failure_persists_safe_diagnostics() -> None:
 
     run = repository.get_run(run_id)
     assert run is not None
-    assert run.status == RunStatus.FAILED
+    assert run.status == RunStatus.COMPLETED
     artifact = repository.get_artifact(run_id, "candidate_generation_failure")
     assert artifact is not None
     assert artifact.payload["failure_kind"] == "truncated"
@@ -655,6 +655,11 @@ async def test_candidate_generation_failure_persists_safe_diagnostics() -> None:
     assert artifact.output_tokens == 600
     assert any(
         event.event_type == "structured_generation_failed"
+        for event in repository.list_events(run_id)
+    )
+    assert any(
+        event.event_type == "stage_degraded"
+        and event.payload.get("stage") == "candidate_generation"
         for event in repository.list_events(run_id)
     )
 

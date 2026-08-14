@@ -12,6 +12,7 @@ prepend import mode).
 
 from __future__ import annotations
 
+import asyncio
 import random
 import re
 from collections import defaultdict
@@ -23,6 +24,7 @@ from pydantic import BaseModel
 from test_workflow import FakeStructuredLLM
 
 from eufy_security_agents.domain.models import (
+    CandidateEnvelope,
     CandidatePairSimilarity,
     CompetitiveAnalysisEnvelope,
     CompetitiveGapsEnvelope,
@@ -32,6 +34,7 @@ from eufy_security_agents.domain.models import (
     LensForecastEnvelope,
     PortfolioDiversityAudit,
     PortfolioDiversityAuditEnvelope,
+    ProductSelectionRequest,
     ReviewEnvelope,
     RunStatus,
 )
@@ -508,6 +511,50 @@ async def test_one_reviewer_failure_renormalizes_weights() -> None:
     assert "review_dimension_unavailable" in _event_types(repo, run_id)
 
 
+class DuplicateRegenerationLLM(FakeStructuredLLM):
+    def __init__(self) -> None:
+        super().__init__(novelty_failures_before_pass=1)
+
+    async def generate(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        response_model: type[T],
+        temperature: float = 0.4,
+    ) -> tuple[T, dict[str, int | str | None]]:
+        value, metadata = await super().generate(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            response_model=response_model,
+            temperature=temperature,
+        )
+        if response_model is CandidateEnvelope and self.candidate_calls >= 3:
+            candidates = value.candidates
+            candidates[1] = candidates[1].model_copy(update={"name": candidates[0].name})
+            value = CandidateEnvelope(candidates=candidates)  # type: ignore[assignment]
+        return value, metadata
+
+
+@pytest.mark.asyncio
+async def test_invalid_novelty_regeneration_uses_last_valid_candidates() -> None:
+    workflow = _make_workflow(DuplicateRegenerationLLM())
+    repo = workflow._repository
+    run_id = workflow.create(_request())
+
+    await workflow.execute(run_id)
+    result = workflow.get_result(run_id)
+
+    assert result.run.status == RunStatus.COMPLETED, result.run.error
+    names = [item.candidate.name for item in result.candidates]
+    assert len(names) == len(set(names))
+    assert any(
+        event.event_type == "stage_degraded"
+        and event.payload.get("stage") == "novelty_audit"
+        for event in repo.list_events(run_id)
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Terminal-state guarantees                                                   #
 # --------------------------------------------------------------------------- #
@@ -535,6 +582,75 @@ class SlowLLM(FakeStructuredLLM):
             response_model=response_model,
             temperature=temperature,
         )
+
+
+class NeverReturningLLM:
+    """A provider call that only exits when cancellation reaches it."""
+
+    model_name = "never-returning-model"
+
+    async def generate(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        response_model: type[T],
+        temperature: float = 0.4,
+    ) -> tuple[T, dict[str, int | str | None]]:
+        del system_prompt, user_prompt, response_model, temperature
+        await asyncio.Event().wait()
+        raise AssertionError("unreachable")
+
+
+@pytest.mark.asyncio
+async def test_never_returning_provider_completes_with_bounded_fallbacks() -> None:
+    workflow = ForecastWorkflow(
+        repository=InMemoryRunRepository(),
+        evidence_store=LocalEvidenceStore(_DATA / "evidence"),
+        competitor_store=LocalCompetitorStore(_DATA / "competitors"),
+        llm=NeverReturningLLM(),
+        stage_timeout_seconds=0.01,
+        timeout_seconds=2,
+    )
+    repo = workflow._repository
+    run_id = workflow.create(_request())
+
+    await asyncio.wait_for(workflow.execute(run_id), timeout=1)
+    result = workflow.get_result(run_id)
+
+    assert result.run.status == RunStatus.COMPLETED, result.run.error
+    assert len(result.lens_forecasts) == 4
+    assert len(result.opportunities) == 5
+    assert len(result.candidates) == 3
+    completed = _completed_event_payload(repo, run_id)
+    assert completed.get("degraded") is True
+    degraded_stages = {
+        event.payload.get("stage")
+        for event in repo.list_events(run_id)
+        if event.event_type == "stage_degraded"
+    }
+    assert {
+        "future_forecasting",
+        "forecast_deliberation",
+        "consensus_formation",
+        "opportunity_synthesis",
+        "competitor_analysis",
+        "current_capability_audit",
+        "candidate_generation",
+        "novelty_audit",
+        "portfolio_diversity_audit",
+        "candidate_review",
+    } <= degraded_stages
+
+    product = await asyncio.wait_for(
+        workflow.define_selected_product(
+            run_id,
+            ProductSelectionRequest(candidate_id=result.candidates[0].candidate.id),
+        ),
+        timeout=1,
+    )
+    assert product.source_run_id == run_id
+    assert product.source_candidate_id == result.candidates[0].candidate.id
 
 
 @pytest.mark.asyncio
