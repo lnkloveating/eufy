@@ -12,6 +12,8 @@ from .forecasting import (
     PortfolioDiversityAuditorAgent,
     ProductArchitectAgent,
     ProductDefinitionAgent,
+    ProductSpecAnalystAgent,
+    ProductSpecReviserAgent,
 )
 
 __all__ = [
@@ -26,4 +28,6 @@ __all__ = [
     "PortfolioDiversityAuditorAgent",
     "ProductArchitectAgent",
     "ProductDefinitionAgent",
+    "ProductSpecAnalystAgent",
+    "ProductSpecReviserAgent",
 ]

@@ -225,7 +225,10 @@ def _classify_failure(exc: Exception) -> tuple[str, str]:
     if isinstance(exc, _StructuredResponseError):
         return exc.kind, exc.detail
     if isinstance(exc, httpx.HTTPStatusError):
-        return "provider_http", f"provider returned HTTP {exc.response.status_code}"
+        status_code = exc.response.status_code
+        if status_code in {401, 403}:
+            return "authentication", f"provider rejected credentials (HTTP {status_code})"
+        return "provider_http", f"provider returned HTTP {status_code}"
     if isinstance(exc, httpx.TimeoutException):
         return "provider_timeout", "provider request timed out"
     if isinstance(exc, httpx.RequestError):

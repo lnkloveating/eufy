@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AlertTriangle, ChevronRight, History } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -98,6 +98,7 @@ function ResearchHomeInner({
   const [supplementalSources, setSupplementalSources] = useState<SupplementalResearchSources>(
     createEmptySupplementalSources,
   );
+  const startingRef = useRef(false);
 
   const backendOnline = Boolean(health);
   const llmConfigured = health?.llm_configured ?? false;
@@ -117,14 +118,25 @@ function ResearchHomeInner({
     setBrief((prev) => ({ ...prev, ...patch }));
 
   const startResearch = async () => {
+    // Synchronous guard: blocks a rapid double-click before React state (and the
+    // disabled button) can react. The Idempotency-Key is a second line of
+    // defense so even a retried POST creates at most one run on the backend.
+    if (startingRef.current || createRun.isPending) return;
+    startingRef.current = true;
+    const idempotencyKey = crypto.randomUUID();
     try {
-      const run = await createRun.mutateAsync(briefToRequest(brief));
+      const run = await createRun.mutateAsync({
+        request: briefToRequest(brief),
+        idempotencyKey,
+      });
       rememberRun(run.id);
       toast.success("深度研究已启动", "正在进入实时研究工作台…");
       navigate(`/runs/${run.id}`);
     } catch (error) {
       const detail = error instanceof ApiError ? error.detail : "启动研究失败，请稍后重试。";
       toast.error("启动研究失败", detail);
+    } finally {
+      startingRef.current = false;
     }
   };
 

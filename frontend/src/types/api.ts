@@ -217,6 +217,8 @@ export interface ForecastConsensus {
   minority_views: string[];
   evidence_gaps: string[];
   opportunity_implications: string[];
+  /** Forecasting lenses that failed after retry and were excluded. */
+  missing_lenses?: string[];
 }
 
 export interface Opportunity {
@@ -277,6 +279,9 @@ export interface CompetitiveAnalysis {
   privacy_and_interoperability_gaps: string[];
   regional_differences: Record<string, string[]>;
   gaps: CompetitiveGap[];
+  /** True when the analysis fell back to an evidence-derived degraded context. */
+  degraded?: boolean;
+  degradation_reason?: string | null;
 }
 
 export interface CompetitivePositioning {
@@ -382,6 +387,9 @@ export interface PortfolioDiversityAudit {
   regeneration_rounds: number;
   regenerated_candidate_ids: string[];
   degraded?: boolean;
+  degradation_reason?: string | null;
+  /** Backend repairs applied to a malformed auditor response (auditable). */
+  normalization_notes?: string[];
   dropped_candidate_ids?: string[];
   unresolved_duplicate_pairs?: string[][];
 }
@@ -482,6 +490,9 @@ export interface ProductSpec {
   competitive_positioning: CompetitivePositioning;
   capability_delta?: CapabilityDelta;
   human_selection_reason: string | null;
+  /** Definition-workbench lifecycle. Optional so historical specs still parse. */
+  definition_status?: DefinitionStatus;
+  last_change_reason?: string | null;
   created_at: string;
 }
 
@@ -573,4 +584,158 @@ export interface ForecastOptions {
   default_weights: ScoreWeights;
   default_strategy_profile: StrategyProfile;
   strategy_presets: StrategyPreset[];
+}
+
+/* -------------------------------------------------------------------------- */
+/* Product Definition Workbench                                               */
+/* -------------------------------------------------------------------------- */
+
+export type DefinitionStatus = "draft" | "under_review" | "validation_ready";
+
+export type AnswerMode = "explanation" | "issue_detected" | "change_request";
+
+export type QuestionCategory =
+  | "technology"
+  | "privacy"
+  | "competition"
+  | "business"
+  | "ecosystem"
+  | "user_experience"
+  | "general";
+
+export type EpistemicStatus =
+  | "evidence_supported"
+  | "reasoned_inference"
+  | "design_assumption"
+  | "insufficient_evidence";
+
+export type SuggestionDisposition = "apply" | "as_risk" | "as_hypothesis" | "dismiss";
+
+export interface ProductQuestionRequest {
+  question: string;
+  idempotency_key?: string;
+}
+
+export interface ProductQuestion {
+  id: string;
+  product_id: string;
+  product_version: string;
+  question: string;
+  category: QuestionCategory;
+  created_at: string;
+}
+
+export interface ProductAnswerClaim {
+  text: string;
+  epistemic_status: EpistemicStatus;
+  evidence_ids: string[];
+  competitor_evidence_ids: string[];
+}
+
+export interface ProductSuggestedChange {
+  id: string;
+  section: string;
+  current_summary: string;
+  proposed_change: string;
+  rationale: string;
+  source_question_id: string;
+  source_issue_id?: string | null;
+  /** null while pending; otherwise accepted / converted_to_risk / converted_to_hypothesis / dismissed. */
+  resolution?: string | null;
+}
+
+export interface ProductDesignIssue {
+  id: string;
+  title: string;
+  description: string;
+  affected_sections: string[];
+  severity: string;
+  reason: string;
+  blocks_readiness: boolean;
+  /** null while open; otherwise addressed / dismissed. */
+  resolution?: string | null;
+}
+
+export interface ProductQuestionAnswer {
+  id: string;
+  question_id: string;
+  product_id: string;
+  product_version: string;
+  category: QuestionCategory;
+  answer_mode: AnswerMode;
+  direct_answer: string;
+  claims: ProductAnswerClaim[];
+  assumptions: string[];
+  unknowns: string[];
+  affected_sections: string[];
+  design_issue?: ProductDesignIssue | null;
+  suggested_changes: ProductSuggestedChange[];
+  integrity_notes: string[];
+  context_evidence_ids: string[];
+  context_competitor_ids: string[];
+  created_at: string;
+}
+
+export interface ProductQuestionRecord {
+  question: ProductQuestion;
+  answer: ProductQuestionAnswer;
+}
+
+export interface ProductRevisionDecision {
+  suggestion_id: string;
+  disposition?: SuggestionDisposition;
+}
+
+export interface ProductRevisionRequest {
+  decisions: ProductRevisionDecision[];
+  change_reason?: string | null;
+  idempotency_key?: string;
+}
+
+export interface ProductRevisionChange {
+  suggestion_id: string;
+  section: string;
+  proposed_change: string;
+  disposition: SuggestionDisposition;
+}
+
+export interface ProductRevision {
+  id: string;
+  product_id: string;
+  from_version: string;
+  to_version: string;
+  source_answer_ids: string[];
+  accepted_changes: ProductRevisionChange[];
+  change_reason: string;
+  before_snapshot: ProductSpec;
+  after_snapshot: ProductSpec;
+  created_at: string;
+}
+
+export interface SuggestionDismissRequest {
+  suggestion_ids: string[];
+}
+
+export interface IssueDismissRequest {
+  issue_ids: string[];
+}
+
+export interface ReadinessItem {
+  id: string;
+  label: string;
+  ok: boolean;
+  detail?: string | null;
+}
+
+export interface ProductDefinitionReadiness {
+  product_id: string;
+  version: string;
+  definition_status: DefinitionStatus;
+  ready: boolean;
+  score: number;
+  completed_items: ReadinessItem[];
+  blocking_items: ReadinessItem[];
+  warnings: ReadinessItem[];
+  outstanding_suggestions: number;
+  next_recommended_questions: string[];
 }
