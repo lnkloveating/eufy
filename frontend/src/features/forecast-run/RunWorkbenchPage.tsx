@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   Activity,
   AlertTriangle,
@@ -21,6 +21,7 @@ import type { AgentEvent, Artifact, ForecastResult, RunStatus } from "../../type
 import { useRun, useRunArtifacts, useRunResult } from "../../lib/queries";
 import { formatDateTime } from "../../lib/formatters";
 import { ApiError } from "../../lib/api/client";
+import { rememberRun } from "../../lib/recent";
 import { StatusBadge } from "../../components/StatusBadge/StatusBadge";
 import { AgentTimeline } from "../../components/AgentTimeline/AgentTimeline";
 import { EmptyState } from "../../components/EmptyState/EmptyState";
@@ -28,7 +29,7 @@ import { ErrorState } from "../../components/ErrorState/ErrorState";
 import { Skeleton, SkeletonText } from "../../components/LoadingSkeleton/LoadingSkeleton";
 import { Button } from "../../components/ui/Button";
 import { Tabs, type TabItem } from "../../components/ui/Tabs";
-import { RunResultTabs } from "./RunResultTabs";
+import { MultiAgentAnalysis } from "./MultiAgentAnalysis";
 import { ResearchStageView } from "./ResearchStageView";
 import { ResearchLedger } from "./ResearchLedger";
 import { LiveResearchCanvas } from "./LiveResearchCanvas";
@@ -43,7 +44,25 @@ import {
   formatDurationMs,
 } from "./researchMetrics";
 
-type WorkspaceTabKey = "overview" | "process" | "evidence" | "results";
+type WorkspaceTabKey = "overview" | "process" | "analysis" | "evidence";
+
+const WORKSPACE_TAB_KEYS = new Set<WorkspaceTabKey>([
+  "overview",
+  "process",
+  "analysis",
+  "evidence",
+]);
+
+export function resolveWorkspaceTab(
+  requested: string | null,
+  status: RunStatus | undefined,
+): WorkspaceTabKey {
+  if (requested && WORKSPACE_TAB_KEYS.has(requested as WorkspaceTabKey)) {
+    return requested as WorkspaceTabKey;
+  }
+  if (requested === "results") return "analysis";
+  return status === "completed" ? "analysis" : "process";
+}
 
 function deriveStage(events: AgentEvent[]): string {
   let stage = "queued";
@@ -153,12 +172,22 @@ function completedAgentCount(events: AgentEvent[]): number {
 
 export function RunWorkbenchPage() {
   const { runId } = useParams<{ runId: string }>();
-  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTabKey>("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
   const processStageRef = useRef<HTMLDivElement | null>(null);
   const [processTimelineHeight, setProcessTimelineHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (runId) rememberRun(runId);
+  }, [runId]);
   const run = useRun(runId);
   const runData = run.data;
   const status = run.data?.status;
+  const workspaceTab = resolveWorkspaceTab(searchParams.get("tab"), status);
+  const selectWorkspaceTab = (tab: WorkspaceTabKey) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", tab);
+    setSearchParams(next, { replace: true });
+  };
   const isFinished = status === "completed" || status === "failed";
 
   const { events, connection } = useRunEvents(runId, isFinished);
@@ -260,6 +289,15 @@ export function RunWorkbenchPage() {
       icon: <Activity size={15} aria-hidden="true" />,
     },
     {
+      key: "analysis",
+      label: "多 Agent 分析",
+      count:
+        data.status === "completed"
+          ? (result.data?.lens_deliberations.length ?? 0)
+          : undefined,
+      icon: <Layers3 size={15} aria-hidden="true" />,
+    },
+    {
       key: "evidence",
       label: "研究证据",
       count:
@@ -267,15 +305,6 @@ export function RunWorkbenchPage() {
           ? (result.data?.evidence.length ?? ledgerCounts.evidenceCount)
           : ledgerCounts.evidenceCount,
       icon: <Database size={15} aria-hidden="true" />,
-    },
-    {
-      key: "results",
-      label: "研究结果",
-      count:
-        data.status === "completed"
-          ? (result.data?.candidates.length ?? ledgerCounts.candidateCount)
-          : ledgerCounts.candidateCount,
-      icon: <Layers3 size={15} aria-hidden="true" />,
     },
   ];
 
@@ -320,7 +349,7 @@ export function RunWorkbenchPage() {
           <Tabs
             items={workspaceTabs}
             active={workspaceTab}
-            onChange={(key) => setWorkspaceTab(key as WorkspaceTabKey)}
+            onChange={(key) => selectWorkspaceTab(key as WorkspaceTabKey)}
             ariaLabel="研究工作台"
           />
         </section>
@@ -331,6 +360,7 @@ export function RunWorkbenchPage() {
               {data.status === "completed" && result.data ? (
                 <>
                   <RunCompletionSnapshot
+                    runId={data.id}
                     result={result.data}
                     artifacts={artifactList}
                     events={events}
@@ -339,7 +369,6 @@ export function RunWorkbenchPage() {
                 </>
               ) : (
                 <ResearchCenter
-                  runId={data.id}
                   status={data.status}
                   stage={data.stage}
                   error={data.error}
@@ -377,6 +406,16 @@ export function RunWorkbenchPage() {
           </div>
         )}
 
+        {workspaceTab === "analysis" && (
+          <RunAnalysisWorkspace
+            status={data.status}
+            error={data.error}
+            result={result}
+            artifacts={artifactList}
+            events={events}
+          />
+        )}
+
         {workspaceTab === "evidence" && (
           <div className="run-evidence-layout">
             <div className="stack stack-5">
@@ -394,16 +433,6 @@ export function RunWorkbenchPage() {
           </div>
         )}
 
-        {workspaceTab === "results" && (
-          <RunResultsWorkspace
-            runId={data.id}
-            status={data.status}
-            error={data.error}
-            result={result}
-            artifacts={artifactList}
-            events={events}
-          />
-        )}
       </div>
     </div>
   );
@@ -496,7 +525,6 @@ function ResearchFailurePanel({ error }: { error: string | null }) {
 }
 
 interface ResearchCenterProps {
-  runId: string;
   status: RunStatus;
   stage: string;
   error: string | null;
@@ -507,7 +535,6 @@ interface ResearchCenterProps {
 }
 
 function ResearchCenter({
-  runId,
   status,
   stage,
   error,
@@ -543,7 +570,7 @@ function ResearchCenter({
     );
   }
 
-  return <ResearchReport runId={runId} result={result.data} artifacts={artifacts} events={events} />;
+  return <MultiAgentResearchReport result={result.data} artifacts={artifacts} events={events} />;
 }
 
 function SummaryStat({
@@ -567,10 +594,12 @@ function SummaryStat({
 }
 
 function RunCompletionSnapshot({
+  runId,
   result,
   artifacts,
   events,
 }: {
+  runId: string;
   result: ForecastResult;
   artifacts: Artifact[];
   events: AgentEvent[];
@@ -628,7 +657,7 @@ function RunCompletionSnapshot({
           <div className="alert-body">
             <span className="alert-title">研究已降级继续完成</span>
             <span>
-              当前结果可用，但包含 {degradation.count} 个降级环节。建议先在“研究结果”里查看候选与证据，再决定是否继续生成 ProductSpec。
+              当前结果可用，但包含 {degradation.count} 个降级环节。建议先查看“多 Agent 分析”和研究证据，再进入产品定义选择候选。
             </span>
           </div>
         </div>
@@ -637,17 +666,22 @@ function RunCompletionSnapshot({
           <CheckCircle2 size={18} className="alert-icon" aria-hidden="true" />
           <div className="alert-body">
             <span className="alert-title">研究完成，等待人工选择</span>
-            <span>结果已经整理到“研究结果”页签，你可以直接对比候选方向并继续生成标准 ProductSpec。</span>
+            <span>Agent 分析已保留在实时研究中，候选产品已经转移到独立的“产品定义”页面。</span>
           </div>
         </div>
       )}
 
       <div className="card card-pad stack stack-3">
         <span className="opp-section-label">下一步</span>
-        <strong>建议先查看候选产品，再决定进入 ProductSpec</strong>
+        <strong>进入产品定义，对比并选择候选产品</strong>
         <span className="subtle" style={{ fontSize: "var(--text-sm)" }}>
-          研究过程、证据和最终候选已经被拆到独立页签中，后续你可以更聚焦地逐块修改和审阅。
+          实时研究保留完整分析过程；产品定义负责候选比较、人工选择和最终 ProductSpec。
         </span>
+        <div>
+          <Link to={`/runs/${encodeURIComponent(runId)}/product-definition`}>
+            <Button variant="primary">进入产品定义并选择</Button>
+          </Link>
+        </div>
       </div>
     </div>
   );
@@ -715,15 +749,13 @@ function RunEvidenceWorkspace({
   );
 }
 
-function RunResultsWorkspace({
-  runId,
+function RunAnalysisWorkspace({
   status,
   error,
   result,
   artifacts,
   events,
 }: {
-  runId: string;
   status: RunStatus;
   error: string | null;
   result: ReturnType<typeof useRunResult>;
@@ -737,11 +769,12 @@ function RunResultsWorkspace({
   if (status !== "completed") {
     return (
       <div className="card card-pad stack stack-4 run-empty-state">
-        <span className="opp-section-label">研究结果</span>
-        <strong>研究仍在进行中</strong>
+        <span className="opp-section-label">多 Agent 分析</span>
+        <strong>结构化分析仍在生成中</strong>
         <span className="subtle" style={{ fontSize: "var(--text-sm)" }}>
-          运行完成后，这里会集中展示机会、候选产品、多维评审和证据引用，不再和执行过程混在一起。
+          各 Agent 的独立判断、交叉质疑和观点修正会在相应阶段完成后写入研究产物。
         </span>
+        {artifacts.length > 0 && <IntermediateArtifacts artifacts={artifacts} />}
       </div>
     );
   }
@@ -749,7 +782,7 @@ function RunResultsWorkspace({
   if (result.isLoading) {
     return (
       <div className="card card-pad stack stack-3">
-        <span className="opp-section-label">正在载入研究结果…</span>
+        <span className="opp-section-label">正在载入多 Agent 分析…</span>
         <SkeletonText lines={6} />
       </div>
     );
@@ -758,21 +791,19 @@ function RunResultsWorkspace({
   if (result.isError || !result.data) {
     return (
       <div className="card card-pad">
-        <ErrorState title="无法载入研究结果" error={result.error} onRetry={() => result.refetch()} />
+        <ErrorState title="无法载入多 Agent 分析" error={result.error} onRetry={() => result.refetch()} />
       </div>
     );
   }
 
-  return <ResearchReport runId={runId} result={result.data} artifacts={artifacts} events={events} />;
+  return <MultiAgentResearchReport result={result.data} artifacts={artifacts} events={events} />;
 }
 
-function ResearchReport({
-  runId,
+function MultiAgentResearchReport({
   result,
   artifacts,
   events,
 }: {
-  runId: string;
   result: ForecastResult;
   artifacts: Artifact[];
   events: AgentEvent[];
@@ -829,7 +860,7 @@ function ResearchReport({
         <div className="alert alert-warn" role="status">
           <AlertTriangle size={18} className="alert-icon" aria-hidden="true" />
           <div className="alert-body">
-            <span className="alert-title">研究已降级继续完成，等待人工选择</span>
+            <span className="alert-title">研究已降级继续完成</span>
             <span>
               以下环节因模型限制或个别 Agent 失败而降级，其余分析已正常完成。结果并非“完整验证”，
               请结合降级说明查看：
@@ -850,12 +881,12 @@ function ResearchReport({
           <CheckCircle2 size={18} className="alert-icon" aria-hidden="true" />
           <div className="alert-body">
             <span className="alert-title">研究完成，等待人工选择</span>
-            <span>请在“产品候选”中对比方案，并自由选择任意方向生成标准 ProductSpec。</span>
+            <span>以下为完整多 Agent 分析记录；候选比较与选择请进入左侧“产品定义”。</span>
           </div>
         </div>
       )}
 
-      <RunResultTabs runId={runId} result={result} />
+      <MultiAgentAnalysis result={result} />
     </div>
   );
 }

@@ -503,6 +503,21 @@ export interface ProductSelectionRequest {
   idempotency_key?: string;
 }
 
+export type ProductDefinitionLifecycle =
+  | "researching"
+  | "awaiting_selection"
+  | "generating"
+  | "ready"
+  | "failed";
+
+export interface RunProductDefinitionState {
+  run_id: string;
+  status: ProductDefinitionLifecycle;
+  product_id: string | null;
+  candidate_id: string | null;
+  error: string | null;
+}
+
 export interface AgentEvent {
   id: number | null;
   run_id: string;

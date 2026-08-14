@@ -17,7 +17,6 @@ import { SCORE_DIMENSIONS } from "../../types/api";
 import { getDimensionLabel } from "../../lib/agentLabels";
 import { orderForDisplay, topCandidate } from "../../lib/candidates";
 import { formatScore } from "../../lib/formatters";
-import { rememberProduct } from "../../lib/recent";
 import { ApiError } from "../../lib/api/client";
 import { useCreateSelection } from "../../lib/queries";
 import { Button } from "../../components/ui/Button";
@@ -97,7 +96,6 @@ export function CandidatesPanel({ runId, candidates, noveltyAudit }: CandidatesP
         requested_changes: input.requestedChanges,
         idempotency_key: `selection:${runId}:${selecting.candidate.id}`,
       });
-      rememberProduct(product.id);
       toast.success("ProductSpec 已生成", "正在打开标准产品定义…");
       navigate(`/products/${product.id}`);
     } catch (error) {

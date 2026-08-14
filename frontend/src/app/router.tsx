@@ -6,6 +6,7 @@ import { Button } from "../components/ui/Button";
 import { DeepResearchHome } from "../features/forecast-create/DeepResearchHome";
 import { RunWorkbenchPage } from "../features/forecast-run/RunWorkbenchPage";
 import { ProductSpecPage } from "../features/product-spec/ProductSpecPage";
+import { ProductDefinitionStatePage } from "../features/product-spec/ProductDefinitionStatePage";
 
 function NotFoundPage() {
   return (
@@ -30,6 +31,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <DeepResearchHome /> },
       { path: "runs/:runId", element: <RunWorkbenchPage /> },
+      { path: "runs/:runId/product-definition", element: <ProductDefinitionStatePage /> },
       { path: "products/:productId", element: <ProductSpecPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],

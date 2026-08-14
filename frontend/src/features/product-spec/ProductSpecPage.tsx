@@ -23,7 +23,7 @@ import {
 import type { ProductSpec, RiskItem, ValidationHypothesis } from "../../types/api";
 import { useProduct, useProductRevisions } from "../../lib/queries";
 import { formatDateTime } from "../../lib/formatters";
-import { rememberProduct } from "../../lib/recent";
+import { rememberRun } from "../../lib/recent";
 import {
   DEFINITION_STATUS_META,
   SECTION_META,
@@ -43,8 +43,8 @@ export function ProductSpecPage() {
   const product = useProduct(productId);
 
   useEffect(() => {
-    if (product.data?.id) rememberProduct(product.data.id);
-  }, [product.data?.id]);
+    if (product.data?.source_run_id) rememberRun(product.data.source_run_id);
+  }, [product.data?.source_run_id]);
 
   if (product.isLoading && !product.data) {
     return (

@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createForecastRun } from "../src/lib/api/forecastApi";
-import { deriveDegradation } from "../src/features/forecast-run/RunWorkbenchPage";
+import { createForecastRun, getRunProductDefinitionState } from "../src/lib/api/forecastApi";
+import {
+  deriveDegradation,
+  resolveWorkspaceTab,
+} from "../src/features/forecast-run/RunWorkbenchPage";
 import type { AgentEvent, ForecastRequest } from "../src/types/api";
 
 const BASE = "http://localhost:8000/api/v1";
@@ -66,6 +69,25 @@ describe("createForecastRun idempotency", () => {
   });
 });
 
+describe("run product definition state API", () => {
+  it("queries state by run instead of a global product pointer", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        run_id: "forecast-current",
+        status: "researching",
+        product_id: null,
+        candidate_id: null,
+        error: null,
+      }),
+    );
+
+    await getRunProductDefinitionState("forecast-current");
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${BASE}/forecast-runs/forecast-current/product-definition-state`);
+  });
+});
+
 function completedEvent(payload: Record<string, unknown>): AgentEvent {
   return {
     id: 1,
@@ -107,5 +129,23 @@ describe("deriveDegradation", () => {
 
   it("treats a run with no completion event as not degraded", () => {
     expect(deriveDegradation([]).degraded).toBe(false);
+  });
+});
+
+describe("completed run navigation", () => {
+  it("opens multi-agent analysis by default once a run is completed", () => {
+    expect(resolveWorkspaceTab(null, "completed")).toBe("analysis");
+  });
+
+  it("preserves an explicitly selected workspace tab", () => {
+    expect(resolveWorkspaceTab("overview", "completed")).toBe("overview");
+  });
+
+  it("keeps an active run on the live process view", () => {
+    expect(resolveWorkspaceTab(null, "running")).toBe("process");
+  });
+
+  it("maps the old results URL to multi-agent analysis", () => {
+    expect(resolveWorkspaceTab("results", "completed")).toBe("analysis");
   });
 });

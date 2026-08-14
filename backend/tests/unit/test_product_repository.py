@@ -116,3 +116,16 @@ def test_revisions_and_resolutions_round_trip(tmp_path: Path) -> None:
     assert len(resolutions) == 1
     assert resolutions[0].resolution == "accepted"
     assert resolutions[0].revision_id == "rev-1"
+
+
+def test_latest_selection_is_scoped_to_run(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    assert repository.get_latest_selection("forecast-1") is None
+
+    repository.reserve_selection("forecast-1", "selection-one", "CAND-001")
+    repository.reserve_selection("forecast-2", "selection-other", "CAND-009")
+    repository.reserve_selection("forecast-1", "selection-two", "CAND-002")
+
+    latest = repository.get_latest_selection("forecast-1")
+    assert latest is not None
+    assert latest.candidate_id == "CAND-002"

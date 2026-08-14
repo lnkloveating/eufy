@@ -62,6 +62,7 @@ from eufy_security_agents.domain.models import (
     ProductAnswerClaim,
     ProductAnswerDraft,
     ProductCandidate,
+    ProductDefinitionLifecycle,
     ProductDefinitionReadiness,
     ProductDesignIssue,
     ProductQuestion,
@@ -79,6 +80,7 @@ from eufy_security_agents.domain.models import (
     RegionalFit,
     RetrievalPlan,
     RiskItem,
+    RunProductDefinitionState,
     RunStatus,
     SelectionStatus,
     StageDegradation,
@@ -824,6 +826,7 @@ class ForecastWorkflow:
         except Exception as exc:
             self._repository.fail_selection(run_id, idempotency_key, str(exc))
             raise
+
         self._emit(
             run_id,
             "product_definition_completed",
@@ -836,6 +839,37 @@ class ForecastWorkflow:
             },
         )
         return product
+
+    def product_definition_state(self, run_id: str) -> RunProductDefinitionState:
+        """Return the run-scoped lifecycle without relying on browser state."""
+
+        run = self._repository.get_run(run_id)
+        if run is None:
+            raise KeyError(run_id)
+
+        selection = self._repository.get_latest_selection(run_id)
+        if selection is not None:
+            if selection.status == SelectionStatus.IN_PROGRESS:
+                status = ProductDefinitionLifecycle.GENERATING
+            elif selection.status == SelectionStatus.COMPLETED and selection.product_id:
+                status = ProductDefinitionLifecycle.READY
+            else:
+                status = ProductDefinitionLifecycle.FAILED
+            return RunProductDefinitionState(
+                run_id=run_id,
+                status=status,
+                product_id=selection.product_id,
+                candidate_id=selection.candidate_id,
+                error=selection.error,
+            )
+
+        if run.status in {RunStatus.PENDING, RunStatus.RUNNING}:
+            status = ProductDefinitionLifecycle.RESEARCHING
+        elif run.status == RunStatus.FAILED:
+            status = ProductDefinitionLifecycle.FAILED
+        else:
+            status = ProductDefinitionLifecycle.AWAITING_SELECTION
+        return RunProductDefinitionState(run_id=run_id, status=status, error=run.error)
 
     # ------------------------------------------------------------------ #
     # Product Definition Workbench                                        #

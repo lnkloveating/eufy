@@ -9,8 +9,9 @@ import {
   Sparkles,
 } from "lucide-react";
 
-import { useHealth } from "../../lib/queries";
-import { getRecentProduct, getRecentRun } from "../../lib/recent";
+import { useHealth, useRunProductDefinitionState } from "../../lib/queries";
+import { getProductDefinitionNavigation } from "../../lib/productDefinitionNavigation";
+import { getRecentRun } from "../../lib/recent";
 
 /** Application frame with a collapsible navigation rail. */
 export function AppShell() {
@@ -18,8 +19,13 @@ export function AppShell() {
   void location.pathname;
 
   const health = useHealth();
-  const recentRun = getRecentRun();
-  const recentProduct = getRecentProduct();
+  const routeRunMatch = location.pathname.match(/^\/runs\/([^/]+)/);
+  const routeRun = routeRunMatch?.[1] ? decodeURIComponent(routeRunMatch[1]) : null;
+  const recentRun = routeRun ?? getRecentRun();
+  const productDefinition = useRunProductDefinitionState(recentRun ?? undefined);
+  const productNavigation = recentRun
+    ? getProductDefinitionNavigation(recentRun, productDefinition.data)
+    : null;
   const [navCollapsed, setNavCollapsed] = useState(false);
 
   const backendOnline = health.isSuccess && !health.isError;
@@ -68,6 +74,7 @@ export function AppShell() {
           {recentRun ? (
             <NavLink
               to={`/runs/${recentRun}`}
+              end
               title="实时研究"
               className={({ isActive }) =>
                 clsx("nav-link", isActive && location.pathname.startsWith("/runs") && "is-active")
@@ -83,19 +90,22 @@ export function AppShell() {
             </span>
           )}
 
-          {recentProduct ? (
+          {productNavigation ? (
             <NavLink
-              to={`/products/${recentProduct}`}
-              title="产品定义"
+              to={productNavigation.path}
+              title={productNavigation.title}
               className={({ isActive }) =>
                 clsx(
                   "nav-link",
-                  isActive && location.pathname.startsWith("/products") && "is-active",
+                  isActive &&
+                    (location.pathname.startsWith("/products") ||
+                      location.pathname.endsWith("/product-definition")) &&
+                    "is-active",
                 )
               }
             >
               <ScrollText size={18} aria-hidden="true" />
-              <span className="nav-link-label">产品定义</span>
+              <span className="nav-link-label">{productNavigation.label}</span>
             </NavLink>
           ) : (
             <span className="nav-link is-disabled" aria-disabled="true" title="产品定义">

@@ -204,6 +204,12 @@ class InMemoryRunRepository:
     def get_selection(self, run_id: str, idempotency_key: str) -> ProductSelectionState | None:
         return self.selections.get((run_id, idempotency_key))
 
+    def get_latest_selection(self, run_id: str) -> ProductSelectionState | None:
+        for (stored_run_id, _), selection in reversed(self.selections.items()):
+            if stored_run_id == run_id:
+                return selection
+        return None
+
     def reserve_selection(self, run_id: str, idempotency_key: str, candidate_id: str) -> bool:
         key = (run_id, idempotency_key)
         existing = self.selections.get(key)

@@ -24,6 +24,7 @@ import type {
   ProductRevisionRequest,
   ProductSelectionRequest,
   ProductSpec,
+  RunProductDefinitionState,
   SuggestionDismissRequest,
 } from "../types/api";
 import { ApiError } from "./api/client";
@@ -46,6 +47,7 @@ import {
   getProductReadiness,
   getProductRevisions,
   getRunArtifacts,
+  getRunProductDefinitionState,
   listForecastRuns,
 } from "./api/forecastApi";
 
@@ -54,6 +56,7 @@ export const queryKeys = {
   forecastOptions: ["forecast-options"] as const,
   recentRuns: (limit: number) => ["forecast-runs", "recent", limit] as const,
   run: (runId: string) => ["forecast-run", runId] as const,
+  productDefinitionState: (runId: string) => ["product-definition-state", runId] as const,
   result: (runId: string) => ["forecast-result", runId] as const,
   product: (productId: string) => ["product", productId] as const,
   artifacts: (runId: string) => ["forecast-artifacts", runId] as const,
@@ -140,6 +143,23 @@ export function useRun(
   });
 }
 
+const ACTIVE_PRODUCT_DEFINITION_STATUSES = new Set(["researching", "generating"]);
+
+export function useRunProductDefinitionState(
+  runId: string | undefined,
+): UseQueryResult<RunProductDefinitionState, ApiError> {
+  return useQuery<RunProductDefinitionState, ApiError>({
+    queryKey: queryKeys.productDefinitionState(runId ?? "unknown"),
+    queryFn: ({ signal }) => getRunProductDefinitionState(runId as string, signal),
+    enabled: Boolean(runId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status && ACTIVE_PRODUCT_DEFINITION_STATUSES.has(status) ? 1500 : false;
+    },
+    retry: (failureCount, error) => !error.isNotFound && failureCount < 2,
+  });
+}
+
 /**
  * Fetch the full result. Only enable once the run has completed to avoid the
  * backend's 409 "still processing" response.
@@ -176,8 +196,33 @@ export function useCreateSelection(runId: string) {
   const queryClient = useQueryClient();
   return useMutation<ProductSpec, ApiError, ProductSelectionRequest>({
     mutationFn: (selection) => createSelection(runId, selection),
+    onMutate: (selection) => {
+      queryClient.setQueryData<RunProductDefinitionState>(
+        queryKeys.productDefinitionState(runId),
+        {
+          run_id: runId,
+          status: "generating",
+          product_id: null,
+          candidate_id: selection.candidate_id,
+          error: null,
+        },
+      );
+    },
     onSuccess: (product) => {
       queryClient.setQueryData(queryKeys.product(product.id), product);
+      queryClient.setQueryData<RunProductDefinitionState>(
+        queryKeys.productDefinitionState(runId),
+        {
+          run_id: runId,
+          status: "ready",
+          product_id: product.id,
+          candidate_id: product.source_candidate_id,
+          error: null,
+        },
+      );
+    },
+    onError: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.productDefinitionState(runId) });
     },
   });
 }

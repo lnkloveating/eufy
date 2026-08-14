@@ -29,6 +29,7 @@ from eufy_security_agents.domain.models import (
     ProductSpec,
     RankedCandidate,
     RetrievalPreview,
+    RunProductDefinitionState,
     RunStatus,
     SuggestionDismissRequest,
 )
@@ -223,6 +224,18 @@ async def get_forecast_run(run_id: str) -> ForecastRun:
     if run is None:
         raise HTTPException(status_code=404, detail="forecast run not found")
     return run
+
+
+@router.get(
+    "/forecast-runs/{run_id}/product-definition-state",
+    response_model=RunProductDefinitionState,
+    tags=["products"],
+)
+async def get_run_product_definition_state(run_id: str) -> RunProductDefinitionState:
+    try:
+        return workflow.product_definition_state(run_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="forecast run not found") from exc
 
 
 @router.get(

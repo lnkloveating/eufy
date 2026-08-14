@@ -551,6 +551,25 @@ class SqlAlchemyRunRepository:
             error=row.error,
         )
 
+    def get_latest_selection(self, run_id: str) -> ProductSelectionState | None:
+        statement = (
+            select(ProductSelectionRow)
+            .where(ProductSelectionRow.run_id == run_id)
+            .order_by(ProductSelectionRow.updated_at.desc(), ProductSelectionRow.id.desc())
+        )
+        with self._sessions() as session:
+            row = session.scalars(statement).first()
+        if row is None:
+            return None
+        return ProductSelectionState(
+            run_id=row.run_id,
+            idempotency_key=row.idempotency_key,
+            candidate_id=row.candidate_id,
+            status=SelectionStatus(row.status),
+            product_id=row.product_id,
+            error=row.error,
+        )
+
     def reserve_selection(self, run_id: str, idempotency_key: str, candidate_id: str) -> bool:
         now = datetime.now(UTC)
         existing = self.get_selection(run_id, idempotency_key)

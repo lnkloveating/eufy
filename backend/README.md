@@ -113,6 +113,7 @@ POST /api/v1/knowledge/retrieval-preview
 
 POST /api/v1/forecast-runs
 GET  /api/v1/forecast-runs/{run_id}
+GET  /api/v1/forecast-runs/{run_id}/product-definition-state
 GET  /api/v1/forecast-runs/{run_id}/events
 GET  /api/v1/forecast-runs/{run_id}/events/stream
 GET  /api/v1/forecast-runs/{run_id}/artifacts
@@ -122,6 +123,8 @@ POST /api/v1/forecast-runs/{run_id}/selections
 ```
 
 前端可在任务运行期间通过 SSE 的 `artifact_ready` 事件和 artifacts 接口读取已经完成的中间结果。选择接口接受 `idempotency_key`，重复提交同一选择会返回同一个 ProductSpec。
+
+`product-definition-state` 是任务级状态契约，返回 `researching`、`awaiting_selection`、`generating`、`ready` 或 `failed`。前端必须通过当前 `run_id` 使用该接口，不得用全局或历史 `product_id` 推断当前产品定义。
 
 ### 创建预测示例
 

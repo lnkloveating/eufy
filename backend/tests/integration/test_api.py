@@ -51,6 +51,13 @@ def test_product_workbench_endpoints_reject_unknown_product() -> None:
     assert client.post("/api/v1/products/does-not-exist/confirm").status_code == 404
 
 
+def test_product_definition_state_rejects_unknown_run() -> None:
+    response = TestClient(create_app()).get(
+        "/api/v1/forecast-runs/does-not-exist/product-definition-state"
+    )
+    assert response.status_code == 404
+
+
 def test_knowledge_coverage_and_retrieval_preview_are_auditable() -> None:
     client = TestClient(create_app())
     coverage = client.get("/api/v1/knowledge/coverage", params={"regions": "China"})

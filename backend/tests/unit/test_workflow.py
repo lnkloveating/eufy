@@ -40,6 +40,7 @@ from eufy_security_agents.domain.models import (
     PortfolioDiversityAudit,
     PortfolioDiversityAuditEnvelope,
     ProductCandidate,
+    ProductDefinitionLifecycle,
     ProductSelectionRequest,
     ProductSpec,
     ProductSpecEnvelope,
@@ -1026,3 +1027,48 @@ async def test_forecast_and_human_selection_complete_without_hardcoded_product()
         )
         == 2
     )
+
+
+def test_product_definition_state_is_scoped_to_its_forecast_run() -> None:
+    repository = InMemoryRunRepository()
+    workflow = ForecastWorkflow(
+        repository=repository,
+        evidence_store=LocalEvidenceStore(
+            Path(__file__).resolve().parents[2] / "data" / "evidence"
+        ),
+        competitor_store=LocalCompetitorStore(
+            Path(__file__).resolve().parents[2] / "data" / "competitors"
+        ),
+        llm=FakeStructuredLLM(),
+    )
+    run_id = workflow.create(ForecastRequest(question="new research"))
+
+    assert (
+        workflow.product_definition_state(run_id).status
+        == ProductDefinitionLifecycle.RESEARCHING
+    )
+
+    repository.update_run(
+        run_id,
+        status=RunStatus.COMPLETED,
+        stage="awaiting_product_selection",
+    )
+    assert (
+        workflow.product_definition_state(run_id).status
+        == ProductDefinitionLifecycle.AWAITING_SELECTION
+    )
+
+    repository.reserve_selection(run_id, "selection-key", "CAND-001")
+    generating = workflow.product_definition_state(run_id)
+    assert generating.status == ProductDefinitionLifecycle.GENERATING
+    assert generating.candidate_id == "CAND-001"
+
+    repository.complete_selection(run_id, "selection-key", "product-current-run")
+    ready = workflow.product_definition_state(run_id)
+    assert ready.status == ProductDefinitionLifecycle.READY
+    assert ready.product_id == "product-current-run"
+
+    other_run_id = workflow.create(ForecastRequest(question="another research"))
+    other = workflow.product_definition_state(other_run_id)
+    assert other.status == ProductDefinitionLifecycle.RESEARCHING
+    assert other.product_id is None

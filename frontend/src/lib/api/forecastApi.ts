@@ -18,6 +18,7 @@ import type {
   ProductRevisionRequest,
   ProductSelectionRequest,
   ProductSpec,
+  RunProductDefinitionState,
   RetrievalPreview,
   SuggestionDismissRequest,
 } from "../../types/api";
@@ -63,6 +64,16 @@ export function createForecastRun(
 
 export function getForecastRun(runId: string, signal?: AbortSignal): Promise<ForecastRun> {
   return request<ForecastRun>(`/forecast-runs/${encodeURIComponent(runId)}`, { signal });
+}
+
+export function getRunProductDefinitionState(
+  runId: string,
+  signal?: AbortSignal,
+): Promise<RunProductDefinitionState> {
+  return request<RunProductDefinitionState>(
+    `/forecast-runs/${encodeURIComponent(runId)}/product-definition-state`,
+    { signal },
+  );
 }
 
 export function listForecastRuns(

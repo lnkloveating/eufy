@@ -35,7 +35,8 @@ Research Home → Research Setup（分步弹窗）→ Live Research → Research
 | 路由 | 说明 |
 | --- | --- |
 | `/` | Deep Research Home（研究输入 + 澄清 + 研究任务确认） |
-| `/runs/:runId` | Live Research 工作台（流水线 / 实时画布 / Ledger → 研究报告 → 候选对比 → 人工选择） |
+| `/runs/:runId` | Live Research 工作台（流水线、Agent 独立判断、交叉质疑、观点修正、共识与证据） |
+| `/runs/:runId/product-definition` | 当前研究的产品定义工作区（预测中 → 候选对比与人工选择 → 生成中） |
 | `/products/:productId` | 标准 ProductSpec（地区适配、竞争定位、Kill Criteria、Validation Readiness） |
 
 运行工作台会实时展示分层 RAG、独立预测、交叉质疑、共识裁决、未来机会、竞品空白和候选盲评。“共识与分歧”页展示每个 Agent 提出的质疑、观点修正、少数意见、证据缺口和后续验证需求。

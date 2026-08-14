@@ -22,6 +22,16 @@ class SelectionStatus(StrEnum):
     FAILED = "failed"
 
 
+class ProductDefinitionLifecycle(StrEnum):
+    """Run-scoped lifecycle shown before a concrete ProductSpec exists."""
+
+    RESEARCHING = "researching"
+    AWAITING_SELECTION = "awaiting_selection"
+    GENERATING = "generating"
+    READY = "ready"
+    FAILED = "failed"
+
+
 class KnowledgeLayer(StrEnum):
     EUFY_FOUNDATION = "eufy_foundation"
     REGIONAL_MARKET = "regional_market"
@@ -775,6 +785,16 @@ class ProductSelectionState(BaseModel):
     candidate_id: str
     status: SelectionStatus
     product_id: str | None = None
+    error: str | None = None
+
+
+class RunProductDefinitionState(BaseModel):
+    """Authoritative product-definition state for one forecast run."""
+
+    run_id: str
+    status: ProductDefinitionLifecycle
+    product_id: str | None = None
+    candidate_id: str | None = None
     error: str | None = None
 
 
