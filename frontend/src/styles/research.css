@@ -94,6 +94,14 @@
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
 }
 
+.research-input-foot .btn.btn-primary:disabled,
+.research-input-foot .btn.btn-primary[aria-disabled="true"] {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #111111;
+  opacity: 1;
+}
+
 .research-input-foot .btn.btn-primary:hover:not(:disabled) {
   background: #f3f3f3;
   border-color: #f3f3f3;

@@ -19,7 +19,7 @@ const STEPS = [
   { label: "研究范围", icon: Target },
   { label: "研究上下文", icon: Database },
   { label: "预测偏好与资料", icon: SlidersHorizontal },
-  { label: "确认 Brief", icon: Check },
+  { label: "确认研究简报", icon: Check },
 ] as const;
 
 export interface ResearchSetupDialogProps {
@@ -130,7 +130,6 @@ export function ResearchSetupDialog({
       open={open}
       onClose={onClose}
       title="配置深度研究"
-      description="设置研究范围、上下文与预测偏好，然后确认 Research Brief。"
       footer={footer}
       busy={starting}
       size="xl"

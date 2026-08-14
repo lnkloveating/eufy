@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+﻿import type { ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   Activity,
@@ -10,7 +10,6 @@ import {
   Database,
   Gauge,
   Radio,
-  Sparkles,
   Swords,
 } from "lucide-react";
 
@@ -31,52 +30,55 @@ import { LiveResearchCanvas } from "./LiveResearchCanvas";
 import { useRunEvents, type ConnectionState } from "./useRunEvents";
 import { aggregateArtifactMetrics, formatDurationMs } from "./researchMetrics";
 
-/** Infer the furthest reached stage from the event stream (for failed runs). */
 function deriveStage(events: AgentEvent[]): string {
   let stage = "queued";
   for (const event of events) {
     const agent = event.agent ?? "";
     if (event.event_type === "evidence_selected") stage = "evidence_selection";
-    else if (event.event_type === "agent_started" && agent.startsWith("futures-"))
+    else if (event.event_type === "agent_started" && agent.startsWith("futures-")) {
       stage = "future_forecasting";
-    else if (event.event_type === "agent_started" && agent.startsWith("deliberator-"))
+    } else if (event.event_type === "agent_started" && agent.startsWith("deliberator-")) {
       stage = "forecast_deliberation";
-    else if (event.event_type === "agent_started" && agent === "forecast-consensus")
+    } else if (event.event_type === "agent_started" && agent === "forecast-consensus") {
       stage = "consensus_formation";
-    else if (event.event_type === "agent_started" && agent === "opportunity-synthesizer")
+    } else if (event.event_type === "agent_started" && agent === "opportunity-synthesizer") {
       stage = "opportunity_synthesis";
-    else if (event.event_type === "agent_started" && agent === "competitor-analysis")
+    } else if (event.event_type === "agent_started" && agent === "competitor-analysis") {
       stage = "competitor_analysis";
-    else if (event.event_type === "agent_started" && agent === "current-product-auditor")
+    } else if (event.event_type === "agent_started" && agent === "current-product-auditor") {
       stage = "current_capability_audit";
-    else if (event.event_type === "agent_started" && agent === "candidate-novelty-auditor")
+    } else if (event.event_type === "agent_started" && agent === "candidate-novelty-auditor") {
       stage = "novelty_audit";
-    else if (event.event_type === "agent_started" && agent === "portfolio-diversity-auditor")
+    } else if (event.event_type === "agent_started" && agent === "portfolio-diversity-auditor") {
       stage = "portfolio_diversity_audit";
-    else if (event.event_type === "agent_started" && agent === "product-architect")
+    } else if (event.event_type === "agent_started" && agent === "product-architect") {
       stage = "candidate_generation";
-    else if (
+    } else if (
       event.event_type === "novelty_audit_started" ||
       event.event_type === "novelty_gate_failed" ||
       event.event_type === "novelty_rescue_started" ||
       event.event_type === "novelty_gate_degraded" ||
       event.event_type === "novelty_audit_completed"
-    )
+    ) {
       stage = "novelty_audit";
-    else if (
+    } else if (
       event.event_type === "portfolio_diversity_audit_started" ||
       event.event_type === "portfolio_duplicate_found" ||
       event.event_type === "portfolio_diversity_degraded" ||
       event.event_type === "portfolio_diversity_audit_completed"
-    )
+    ) {
       stage = "portfolio_diversity_audit";
-    else if (event.event_type === "agent_started" && agent.startsWith("reviewer-"))
+    } else if (event.event_type === "agent_started" && agent.startsWith("reviewer-")) {
       stage = "candidate_review";
+    }
   }
   return stage;
 }
 
-const CONNECTION_META: Record<ConnectionState, { label: string; className: string; live?: boolean }> = {
+const CONNECTION_META: Record<
+  ConnectionState,
+  { label: string; className: string; live?: boolean }
+> = {
   connecting: { label: "连接中", className: "conn-connecting" },
   live: { label: "实时", className: "conn-live", live: true },
   reconnecting: { label: "重连中（轮询兜底）", className: "conn-reconnecting" },
@@ -119,16 +121,21 @@ export function RunWorkbenchPage() {
   const artifacts = useRunArtifacts(runId, !isFinished);
   const artifactList = artifacts.data ?? [];
 
-  // ---- First load / not-found / error gates ----
   if (run.isLoading && !run.data) {
     return (
       <div className="page">
         <Skeleton width="40%" height={30} radius={8} />
         <div style={{ height: 20 }} />
         <div className="research-grid">
-          <div className="card card-pad"><SkeletonText lines={8} /></div>
-          <div className="card card-pad"><SkeletonText lines={10} /></div>
-          <div className="card card-pad"><SkeletonText lines={8} /></div>
+          <div className="card card-pad">
+            <SkeletonText lines={8} />
+          </div>
+          <div className="card card-pad">
+            <SkeletonText lines={10} />
+          </div>
+          <div className="card card-pad">
+            <SkeletonText lines={8} />
+          </div>
         </div>
       </div>
     );
@@ -175,7 +182,6 @@ export function RunWorkbenchPage() {
 
   return (
     <div className="page">
-      {/* ---- Header ---- */}
       <div className="page-header stack stack-4">
         <div className="row between wrap row-gap-3">
           <Link to="/" className="row row-gap-2 muted" style={{ fontSize: "var(--text-sm)" }}>
@@ -189,7 +195,6 @@ export function RunWorkbenchPage() {
 
         <div className="row between wrap row-gap-3" style={{ alignItems: "flex-start" }}>
           <div className="stack stack-3" style={{ minWidth: 0, flex: 1 }}>
-            <span className="eyebrow">Live Research · AI 原生产品研究</span>
             <h1 className="page-title" style={{ fontSize: "var(--text-2xl)" }}>
               {data.request.question}
             </h1>
@@ -212,22 +217,8 @@ export function RunWorkbenchPage() {
             </span>
           </div>
         </div>
-
-        <div
-          className="hero-note"
-          style={{
-            marginTop: 0,
-            background: "var(--accent-softer)",
-            color: "var(--ink-600)",
-            border: "1px solid var(--accent-soft)",
-          }}
-        >
-          <Sparkles size={16} style={{ color: "var(--accent-strong)", flexShrink: 0 }} aria-hidden="true" />
-          同一套研究工作流会根据问题、地区、用户与约束生成不同的未来产品组合 —— 当前候选完全由多 Agent 基于地区化 RAG 与竞品分析动态预测得出。
-        </div>
       </div>
 
-      {/* ---- Three-column research workbench ---- */}
       <div className="research-grid">
         <aside className="research-col research-left">
           <ResearchStageView activeStageKey={activeStageKey} failed={status === "failed"} />
@@ -320,7 +311,6 @@ function ResearchCenter({
     );
   }
 
-  // status === completed
   if (result.isLoading) {
     return (
       <div className="card card-pad stack stack-3">
@@ -329,6 +319,7 @@ function ResearchCenter({
       </div>
     );
   }
+
   if (result.isError || !result.data) {
     return (
       <div className="card card-pad">
@@ -372,6 +363,7 @@ function ResearchReport({
   events: AgentEvent[];
 }) {
   const metrics = aggregateArtifactMetrics(artifacts);
+
   return (
     <div className="stack stack-5">
       <div className="card card-pad research-summary">

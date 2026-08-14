@@ -6,6 +6,13 @@ import { Field } from "../../components/ui/Field";
 import { MultiSelectCombobox } from "../../components/ui/MultiSelectCombobox";
 import { TagInput } from "../../components/ui/TagInput";
 import type { ResearchBrief } from "./researchBrief";
+import {
+  CATEGORY_OPTIONS,
+  parseCategorySelections,
+  serializeCategorySelections,
+} from "./researchCategories";
+import { CONSTRAINT_OPTIONS } from "./researchConstraints";
+import { TARGET_USER_OPTIONS } from "./researchTargetUsers";
 
 const REGION_LABELS: Record<string, string> = {
   China: "中国",
@@ -20,21 +27,10 @@ const REGION_LABELS: Record<string, string> = {
   Global: "全球",
 };
 
-function formatRegionLabel(region: string) {
-  return REGION_LABELS[region] ?? region;
-}
-
-export interface AdvancedResearchSettingsProps {
-  brief: ResearchBrief;
-  options: ForecastOptions;
-  onChange: (patch: Partial<ResearchBrief>) => void;
-  section?: "all" | "scope" | "context";
-}
-
-const CONTEXT_FIELDS: {
+const CONTEXT_FIELDS: Array<{
   key: Exclude<keyof ResearchContext, "innovation_posture">;
   label: string;
-}[] = [
+}> = [
   { key: "housing_types", label: "住宅类型" },
   { key: "household_members", label: "家庭成员" },
   { key: "security_scenarios", label: "安全场景" },
@@ -48,6 +44,27 @@ const CONTEXT_FIELDS: {
   { key: "desired_outcomes", label: "期望结果" },
   { key: "validation_priorities", label: "验证优先级" },
 ];
+
+const PRICE_SEGMENT_OPTIONS: Array<{ label: string; value: string | null }> = [
+  { label: "不限", value: null },
+  { label: "$100 以下", value: "$0-$99" },
+  { label: "$100-$199", value: "$100-$199" },
+  { label: "$200-$399", value: "$200-$399" },
+  { label: "$400-$799", value: "$400-$799" },
+  { label: "$800-$1499", value: "$800-$1499" },
+  { label: "$1500 以上", value: "$1500+" },
+];
+
+function formatRegionLabel(region: string) {
+  return REGION_LABELS[region] ?? region;
+}
+
+export interface AdvancedResearchSettingsProps {
+  brief: ResearchBrief;
+  options: ForecastOptions;
+  onChange: (patch: Partial<ResearchBrief>) => void;
+  section?: "all" | "scope" | "context";
+}
 
 function ContextChoiceField({
   field,
@@ -116,17 +133,30 @@ function ScopeSettings({
     () => brief.regions.filter((region) => !options.regions.includes(region)),
     [brief.regions, options.regions],
   );
+  const categorySelections = useMemo(
+    () => parseCategorySelections(brief.category),
+    [brief.category],
+  );
+  const priceSegmentIndex = useMemo(() => {
+    const found = PRICE_SEGMENT_OPTIONS.findIndex((option) => option.value === brief.price_segment);
+    return found >= 0 ? found : 0;
+  }, [brief.price_segment]);
 
   return (
     <div className="advanced-settings stack">
       <div className="form-grid">
         <Field label="品类" required>
           {(aria) => (
-            <input
-              {...aria}
-              className="input"
-              value={brief.category}
-              onChange={(event) => onChange({ category: event.target.value })}
+            <MultiSelectCombobox
+              id={aria.id}
+              ariaLabel="品类"
+              ariaDescribedby={aria["aria-describedby"]}
+              options={[...CATEGORY_OPTIONS]}
+              values={categorySelections}
+              onChange={(next) => onChange({ category: serializeCategorySelections(next) })}
+              placeholder="搜索或选择品类…"
+              allowCustom
+              emptyText="没有匹配的品类"
             />
           )}
         </Field>
@@ -213,37 +243,64 @@ function ScopeSettings({
       <div className="form-grid">
         <Field label="目标用户" required>
           {(aria) => (
-            <TagInput
-              values={brief.target_users}
-              onChange={(next) => onChange({ target_users: next })}
-              placeholder="输入用户群体后回车…"
+            <MultiSelectCombobox
               id={aria.id}
               ariaLabel="目标用户"
+              ariaDescribedby={aria["aria-describedby"]}
+              options={[...TARGET_USER_OPTIONS]}
+              values={brief.target_users}
+              onChange={(next) => onChange({ target_users: next })}
+              placeholder="搜索或选择目标用户…"
+              allowCustom
+              emptyText="没有匹配的目标用户"
             />
           )}
         </Field>
 
-        <Field label="价格带" hint="可选，例如 中高端 / Premium">
+        <Field label="价格带">
           {(aria) => (
-            <input
-              {...aria}
-              className="input"
-              value={brief.price_segment ?? ""}
-              onChange={(event) => onChange({ price_segment: event.target.value || null })}
-              placeholder="不限"
-            />
+            <div className="stack stack-2">
+              <div className="row row-gap-3">
+                <input
+                  {...aria}
+                  className="weight-range grow"
+                  type="range"
+                  min={0}
+                  max={PRICE_SEGMENT_OPTIONS.length - 1}
+                  step={1}
+                  value={priceSegmentIndex}
+                  onChange={(event) =>
+                    onChange({
+                      price_segment:
+                        PRICE_SEGMENT_OPTIONS[Number(event.target.value)]?.value ?? null,
+                    })
+                  }
+                />
+                <span className="strong" style={{ minWidth: 92 }}>
+                  {PRICE_SEGMENT_OPTIONS[priceSegmentIndex]?.label ?? "不限"}
+                </span>
+              </div>
+              <div className="row between row-gap-2 subtle" style={{ fontSize: "var(--text-xs)" }}>
+                <span>{PRICE_SEGMENT_OPTIONS[0]?.label}</span>
+                <span>{PRICE_SEGMENT_OPTIONS[PRICE_SEGMENT_OPTIONS.length - 1]?.label}</span>
+              </div>
+            </div>
           )}
         </Field>
       </div>
 
-      <Field label="限制条件" hint="可选：合规、隐私、成本等约束">
+      <Field label="限制条件">
         {(aria) => (
-          <TagInput
-            values={brief.constraints}
-            onChange={(next) => onChange({ constraints: next })}
-            placeholder="输入限制条件后回车…"
+          <MultiSelectCombobox
             id={aria.id}
             ariaLabel="限制条件"
+            ariaDescribedby={aria["aria-describedby"]}
+            options={[...CONSTRAINT_OPTIONS]}
+            values={brief.constraints}
+            onChange={(next) => onChange({ constraints: next })}
+            placeholder="搜索或选择限制条件…"
+            allowCustom
+            emptyText="没有匹配的限制条件"
           />
         )}
       </Field>

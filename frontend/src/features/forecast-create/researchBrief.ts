@@ -87,7 +87,7 @@ function defaultWeights(options?: ForecastOptions): ScoreWeights {
 }
 
 export function createEmptyBrief(options?: ForecastOptions): ResearchBrief {
-  return { question: "", category: "eufy Security", forecast_horizon_years: options?.forecast_horizon_years.default ?? 3, regions: [], target_users: [], price_segment: null, constraints: [], research_context: emptyResearchContext(), candidate_count: options?.candidate_count.default ?? 6, strategy_profile: options?.default_strategy_profile ?? "balanced", weights: defaultWeights(options) };
+  return { question: "", category: "安防", forecast_horizon_years: options?.forecast_horizon_years.default ?? 3, regions: [], target_users: [], price_segment: null, constraints: [], research_context: emptyResearchContext(), candidate_count: options?.candidate_count.default ?? 6, strategy_profile: options?.default_strategy_profile ?? "balanced", weights: defaultWeights(options) };
 }
 
 /** Apply a backend-authored preset: sets both the profile label and its weights. */
@@ -140,7 +140,7 @@ function dedupeStrings(values: string[]): string[] { return [...new Set(values.m
 
 export function briefToRequest(brief: ResearchBrief): ForecastRequest {
   return {
-    question: brief.question.trim(), category: brief.category.trim() || "eufy Security",
+    question: brief.question.trim(), category: brief.category.trim() || "安防",
     forecast_horizon_years: brief.forecast_horizon_years ?? 3,
     regions: brief.regions.length ? brief.regions : ["United States"],
     target_users: brief.target_users.length ? brief.target_users : ["Households"],
