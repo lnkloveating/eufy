@@ -1,4 +1,12 @@
-import { Database, Layers3, MapPin, ShieldCheck, TriangleAlert } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  ChevronDown,
+  Database,
+  Layers3,
+  MapPin,
+  ShieldCheck,
+  TriangleAlert,
+} from "lucide-react";
 import type { EvidenceRecord, RetrievalPlan } from "../../types/api";
 
 const LAYER_LABELS: Record<string, string> = {
@@ -14,11 +22,19 @@ const LAYER_LABELS: Record<string, string> = {
 export function KnowledgePlanPanel({
   plan,
   evidence,
+  defaultEvidenceBundleExpanded = false,
 }: {
   plan: RetrievalPlan | null;
   evidence: EvidenceRecord[];
+  defaultEvidenceBundleExpanded?: boolean;
 }) {
   if (!plan) return null;
+
+  const [bundleExpanded, setBundleExpanded] = useState(defaultEvidenceBundleExpanded);
+
+  useEffect(() => {
+    setBundleExpanded(defaultEvidenceBundleExpanded);
+  }, [defaultEvidenceBundleExpanded]);
 
   const counts = evidence.reduce<Record<string, number>>((acc, record) => {
     acc[record.layer] = (acc[record.layer] ?? 0) + 1;
@@ -43,7 +59,11 @@ export function KnowledgePlanPanel({
                 <MapPin size={15} aria-hidden="true" /> {item.region}
               </strong>
               <span className={`chip ${item.level === "strong" ? "chip-accent" : "chip-outline"}`}>
-                {item.level === "strong" ? "资料充分" : item.level === "moderate" ? "资料一般" : "资料有限"}
+                {item.level === "strong"
+                  ? "资料充足"
+                  : item.level === "moderate"
+                    ? "资料一般"
+                    : "资料有限"}
               </span>
             </div>
             <div className="row wrap row-gap-2">
@@ -70,28 +90,58 @@ export function KnowledgePlanPanel({
         </div>
       )}
 
-      <div className="card card-pad stack stack-4">
-        <div className="row between">
-          <strong className="row row-gap-2"><Database size={16} /> Evidence Bundle</strong>
-          <span className="chip chip-accent">实际输入 {evidence.length} 条</span>
-        </div>
-        <div className="grid-cards">
-          {plan.required_layers.map((layer) => (
-            <div className="card card-pad stack stack-2" key={layer}>
-              <span className="muted" style={{ fontSize: "var(--text-xs)" }}>
-                {LAYER_LABELS[layer] ?? layer}
-              </span>
-              <strong>{counts[layer] ?? 0} 条</strong>
-              <span className="subtle" style={{ fontSize: "var(--text-xs)" }}>
-                配额上限 {plan.layer_quotas[layer] ?? 0}
-              </span>
+      <div className="card">
+        <button
+          type="button"
+          className="knowledge-bundle-toggle"
+          aria-expanded={bundleExpanded}
+          onClick={() => setBundleExpanded((value) => !value)}
+        >
+          <span className="stack stack-none">
+            <strong className="row row-gap-2">
+              <Database size={16} aria-hidden="true" />
+              <span>Evidence Bundle</span>
+            </strong>
+            <span className="subtle knowledge-bundle-summary">
+              实际输入 {evidence.length} 条 · {plan.required_layers.length} 个维度
+              {plan.query_topics.length > 0 ? ` · ${plan.query_topics.length} 个主题` : ""}
+            </span>
+          </span>
+          <span className="row row-gap-2">
+            <span className="chip chip-accent">实际输入 {evidence.length} 条</span>
+            <ChevronDown
+              size={16}
+              aria-hidden="true"
+              className={`knowledge-bundle-chevron ${bundleExpanded ? "is-expanded" : ""}`}
+            />
+          </span>
+        </button>
+
+        {bundleExpanded && (
+          <div className="card-pad stack stack-4" style={{ borderTop: "1px solid var(--line)" }}>
+            <div className="grid-cards">
+              {plan.required_layers.map((layer) => (
+                <div className="card card-pad stack stack-2" key={layer}>
+                  <span className="muted" style={{ fontSize: "var(--text-xs)" }}>
+                    {LAYER_LABELS[layer] ?? layer}
+                  </span>
+                  <strong>{counts[layer] ?? 0} 条</strong>
+                  <span className="subtle" style={{ fontSize: "var(--text-xs)" }}>
+                    配额上限 {plan.layer_quotas[layer] ?? 0}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        {plan.query_topics.length > 0 && (
-          <div className="row wrap row-gap-2">
-            <ShieldCheck size={15} className="muted" aria-hidden="true" />
-            {plan.query_topics.map((topic) => <span className="chip chip-outline" key={topic}>{topic}</span>)}
+            {plan.query_topics.length > 0 && (
+              <div className="row wrap row-gap-2">
+                <ShieldCheck size={15} className="muted" aria-hidden="true" />
+                {plan.query_topics.map((topic) => (
+                  <span className="chip chip-outline" key={topic}>
+                    {topic}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

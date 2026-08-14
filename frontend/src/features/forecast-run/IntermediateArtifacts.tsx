@@ -20,7 +20,13 @@ function artifactPayload<T>(artifacts: Artifact[], kind: string): T | null {
   return artifact ? (artifact.payload as T) : null;
 }
 
-export function IntermediateArtifacts({ artifacts }: { artifacts: Artifact[] }) {
+export function IntermediateArtifacts({
+  artifacts,
+  defaultEvidenceBundleExpanded = false,
+}: {
+  artifacts: Artifact[];
+  defaultEvidenceBundleExpanded?: boolean;
+}) {
   const plan = artifactPayload<RetrievalPlan>(artifacts, "retrieval_plan");
   const evidence = artifactPayload<EvidenceRecord[]>(artifacts, "evidence") ?? [];
   const forecasts = artifacts
@@ -32,6 +38,14 @@ export function IntermediateArtifacts({ artifacts }: { artifacts: Artifact[] }) 
   const competition = artifactPayload<CompetitiveAnalysis>(artifacts, "competitive_analysis");
   const deliberations = artifactPayload<LensDeliberation[]>(artifacts, "lens_deliberations") ?? [];
   const consensus = artifactPayload<ForecastConsensus>(artifacts, "forecast_consensus");
+  const knowledgePlanIsOnlyCoreContent =
+    Boolean(plan) &&
+    forecasts.length === 0 &&
+    opportunities.length === 0 &&
+    candidates.length === 0 &&
+    deliberations.length === 0 &&
+    !consensus &&
+    !competition;
 
   if (artifacts.length === 0) {
     return (
@@ -51,7 +65,15 @@ export function IntermediateArtifacts({ artifacts }: { artifacts: Artifact[] }) 
         <span className="chip"><Swords size={12} /> {competition?.gaps.length ?? 0} 个竞争空白</span>
         <span className="chip"><Boxes size={12} /> {candidates.length} 个候选</span>
       </div>
-      {plan && <KnowledgePlanPanel plan={plan} evidence={evidence} />}
+      {plan && (
+        <KnowledgePlanPanel
+          plan={plan}
+          evidence={evidence}
+          defaultEvidenceBundleExpanded={
+            defaultEvidenceBundleExpanded && knowledgePlanIsOnlyCoreContent
+          }
+        />
+      )}
       {forecasts.length > 0 && <AgentInsights forecasts={forecasts} evidence={evidence} />}
       {(deliberations.length > 0 || consensus) && (
         <DeliberationPanel deliberations={deliberations} consensus={consensus} />

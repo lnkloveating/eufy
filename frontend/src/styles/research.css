@@ -506,6 +506,36 @@
 .ledger-label { display: flex; align-items: center; gap: 7px; color: var(--ink-600); }
 .ledger-value { color: var(--ink-900); font-weight: 600; }
 
+.knowledge-bundle-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: 0;
+  background: transparent;
+  color: var(--ink-900);
+  text-align: left;
+  cursor: pointer;
+}
+
+.knowledge-bundle-toggle:hover .knowledge-bundle-chevron {
+  color: var(--ink-700);
+}
+
+.knowledge-bundle-summary {
+  font-size: var(--text-xs);
+}
+
+.knowledge-bundle-chevron {
+  transition: transform 160ms ease, color 160ms ease;
+}
+
+.knowledge-bundle-chevron.is-expanded {
+  transform: rotate(180deg);
+}
+
 /* ---------- Focus card + scan bar ---------- */
 .focus-card {
   padding: var(--space-4) var(--space-5);

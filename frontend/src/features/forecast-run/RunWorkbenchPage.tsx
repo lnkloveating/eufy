@@ -44,13 +44,14 @@ import {
   formatDurationMs,
 } from "./researchMetrics";
 
-type WorkspaceTabKey = "overview" | "process" | "analysis" | "evidence";
+type WorkspaceTabKey = "overview" | "process" | "analysis" | "evidence" | "ledger";
 
 const WORKSPACE_TAB_KEYS = new Set<WorkspaceTabKey>([
   "overview",
   "process",
   "analysis",
   "evidence",
+  "ledger",
 ]);
 
 export function resolveWorkspaceTab(
@@ -306,6 +307,11 @@ export function RunWorkbenchPage() {
           : ledgerCounts.evidenceCount,
       icon: <Database size={15} aria-hidden="true" />,
     },
+    {
+      key: "ledger",
+      label: "研究台账",
+      icon: <Gauge size={15} aria-hidden="true" />,
+    },
   ];
 
   return (
@@ -355,34 +361,28 @@ export function RunWorkbenchPage() {
         </section>
 
         {workspaceTab === "overview" && (
-          <div className="run-overview-layout">
-            <div className="stack stack-5">
-              {data.status === "completed" && result.data ? (
-                <>
-                  <RunCompletionSnapshot
-                    runId={data.id}
-                    result={result.data}
-                    artifacts={artifactList}
-                    events={events}
-                  />
-                  <ResearchContextPanel request={data.request} />
-                </>
-              ) : (
-                <ResearchCenter
-                  status={data.status}
-                  stage={data.stage}
-                  error={data.error}
-                  regions={data.request.regions}
-                  result={result}
+          <div className="stack stack-5">
+            {data.status === "completed" && result.data ? (
+              <>
+                <RunCompletionSnapshot
+                  runId={data.id}
+                  result={result.data}
                   artifacts={artifactList}
                   events={events}
                 />
-              )}
-            </div>
-
-            <div className="run-side-stack">
-              <ResearchLedger artifacts={artifactList} events={events} active={!isFinished} />
-            </div>
+                <ResearchContextPanel request={data.request} />
+              </>
+            ) : (
+              <ResearchCenter
+                status={data.status}
+                stage={data.stage}
+                error={data.error}
+                regions={data.request.regions}
+                result={result}
+                artifacts={artifactList}
+                events={events}
+              />
+            )}
           </div>
         )}
 
@@ -430,6 +430,12 @@ export function RunWorkbenchPage() {
                 artifacts={artifactList}
               />
             </div>
+          </div>
+        )}
+
+        {workspaceTab === "ledger" && (
+          <div className="stack stack-5">
+            <ResearchLedger artifacts={artifactList} events={events} active={!isFinished} />
           </div>
         )}
 
@@ -502,6 +508,18 @@ function TimelinePanel({
         )}
       </div>
     </div>
+  );
+}
+
+function isEvidenceRelatedFailure(error: string | null): boolean {
+  if (!error) return false;
+
+  const normalized = error.toLowerCase();
+  return (
+    normalized.includes("insufficient_evidence") ||
+    normalized.includes("evidence insufficient") ||
+    normalized.includes("evidence bundle") ||
+    normalized.includes("????")
   );
 }
 
@@ -699,6 +717,18 @@ function RunEvidenceWorkspace({
   artifacts: Artifact[];
 }) {
   if (status === "failed") {
+    if (artifacts.length > 0 && isEvidenceRelatedFailure(error)) {
+      return (
+        <div className="stack stack-5">
+          <ResearchFailurePanel error={error} />
+          <IntermediateArtifacts
+            artifacts={artifacts}
+            defaultEvidenceBundleExpanded
+          />
+        </div>
+      );
+    }
+
     return <ResearchFailurePanel error={error} />;
   }
 
