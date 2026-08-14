@@ -1,14 +1,15 @@
 import { useRef, useState } from "react";
-import { AlertTriangle, ChevronRight, History } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { AlertTriangle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import type { ForecastOptions, HealthResponse } from "../../types/api";
 import { useCreateRun, useForecastOptions, useHealth } from "../../lib/queries";
-import { getRecentRun, rememberRun } from "../../lib/recent";
+import { rememberRun } from "../../lib/recent";
 import { ApiError } from "../../lib/api/client";
 import { ErrorState } from "../../components/ErrorState/ErrorState";
 import { SkeletonText } from "../../components/LoadingSkeleton/LoadingSkeleton";
 import { useToast } from "../../components/ui/Toast";
+import { RecentResearchEntry } from "./RecentResearchEntry";
 import { ResearchPrompt } from "./ResearchPrompt";
 import { ResearchSetupDialog } from "./ResearchSetupDialog";
 import {
@@ -49,36 +50,11 @@ function HealthAlerts({
           <AlertTriangle size={18} className="alert-icon" aria-hidden="true" />
           <div className="alert-body">
             <span className="alert-title">LLM 未配置</span>
-            <span>
-              后端未检测到 LLM API Key。多 Agent 研究依赖 LLM，请在后端环境变量中配置后再开始。
-            </span>
+            <span>后端尚未检测到 LLM API Key。多 Agent 研究依赖模型能力，请先完成后端配置。</span>
           </div>
         </div>
       )}
     </>
-  );
-}
-
-function RecentResearchEntry() {
-  const recentRun = getRecentRun();
-
-  if (!recentRun) {
-    return null;
-  }
-
-  return (
-    <Link to={`/runs/${recentRun}`} className="recent-entry">
-      <span className="row row-gap-3" style={{ minWidth: 0 }}>
-        <History size={16} aria-hidden="true" />
-        <span className="stack stack-none" style={{ minWidth: 0 }}>
-          <span className="strong">继续上次研究</span>
-          <span className="mono subtle" style={{ fontSize: "var(--text-xs)" }}>
-            {recentRun}
-          </span>
-        </span>
-      </span>
-      <ChevronRight size={16} aria-hidden="true" />
-    </Link>
   );
 }
 
@@ -118,9 +94,6 @@ function ResearchHomeInner({
     setBrief((prev) => ({ ...prev, ...patch }));
 
   const startResearch = async () => {
-    // Synchronous guard: blocks a rapid double-click before React state (and the
-    // disabled button) can react. The Idempotency-Key is a second line of
-    // defense so even a retried POST creates at most one run on the backend.
     if (startingRef.current || createRun.isPending) return;
     startingRef.current = true;
     const idempotencyKey = crypto.randomUUID();
@@ -130,7 +103,7 @@ function ResearchHomeInner({
         idempotencyKey,
       });
       rememberRun(run.id);
-      toast.success("深度研究已启动", "正在进入实时研究工作台…");
+      toast.success("深度研究已启动", "正在进入实时研究工作台。");
       navigate(`/runs/${run.id}`);
     } catch (error) {
       const detail = error instanceof ApiError ? error.detail : "启动研究失败，请稍后重试。";
@@ -170,7 +143,7 @@ function ResearchHomeInner({
         onClose={() => setSetupOpen(false)}
         onStart={startResearch}
         onAutoResearchUnavailable={() =>
-          toast.info("自动补充公开资料暂未启用", "当前研究继续使用本地知识快照。")
+          toast.info("自动补充公开资料暂未启用", "当前研究将继续使用本地知识快照。")
         }
         starting={createRun.isPending}
         canStart={canStart}

@@ -10,6 +10,7 @@ from eufy_security_agents.domain.models import (
     Artifact,
     ForecastRequest,
     ForecastRun,
+    ForecastRunSummary,
     ProductQuestionRecord,
     ProductRevision,
     ProductSelectionState,
@@ -60,6 +61,29 @@ class InMemoryRunRepository:
 
     def get_run(self, run_id: str) -> ForecastRun | None:
         return self.runs.get(run_id)
+
+    def list_runs(self, *, limit: int = 20) -> list[ForecastRunSummary]:
+        recent_runs = sorted(
+            self.runs.values(),
+            key=lambda run: run.created_at,
+            reverse=True,
+        )[:limit]
+        return [
+            ForecastRunSummary(
+                id=run.id,
+                status=run.status,
+                stage=run.stage,
+                question=run.request.question,
+                category=run.request.category,
+                regions=run.request.regions,
+                created_at=run.created_at,
+                updated_at=run.updated_at,
+            )
+            for run in recent_runs
+        ]
+
+    def count_runs(self) -> int:
+        return len(self.runs)
 
     def update_run(
         self,

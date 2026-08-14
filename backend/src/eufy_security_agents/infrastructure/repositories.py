@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Integer, String, Text, UniqueConstraint, create_engine, select
+from sqlalchemy import DateTime, Integer, String, Text, UniqueConstraint, create_engine, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
@@ -17,6 +17,7 @@ from eufy_security_agents.domain.models import (
     Artifact,
     ForecastRequest,
     ForecastRun,
+    ForecastRunSummary,
     ProductQuestionRecord,
     ProductRevision,
     ProductSelectionState,
@@ -229,6 +230,21 @@ class SqlAlchemyRunRepository:
         with self._sessions() as session:
             row = session.get(ForecastRunRow, run_id)
             return self._run_model(row) if row else None
+
+    def list_runs(self, *, limit: int = 20) -> list[ForecastRunSummary]:
+        statement = (
+            select(ForecastRunRow)
+            .order_by(ForecastRunRow.created_at.desc(), ForecastRunRow.id.desc())
+            .limit(limit)
+        )
+        with self._sessions() as session:
+            rows = session.scalars(statement).all()
+        return [self._run_summary_model(row) for row in rows]
+
+    def count_runs(self) -> int:
+        statement = select(func.count()).select_from(ForecastRunRow)
+        with self._sessions() as session:
+            return session.scalar(statement) or 0
 
     def update_run(
         self,
@@ -623,6 +639,20 @@ class SqlAlchemyRunRepository:
             stage=row.stage,
             request=ForecastRequest.model_validate_json(row.request_json),
             error=row.error,
+            created_at=row.created_at,
+            updated_at=row.updated_at,
+        )
+
+    @staticmethod
+    def _run_summary_model(row: ForecastRunRow) -> ForecastRunSummary:
+        request = ForecastRequest.model_validate_json(row.request_json)
+        return ForecastRunSummary(
+            id=row.id,
+            status=RunStatus(row.status),
+            stage=row.stage,
+            question=request.question,
+            category=request.category,
+            regions=request.regions,
             created_at=row.created_at,
             updated_at=row.updated_at,
         )

@@ -524,6 +524,23 @@ export interface ForecastRun {
   updated_at: string;
 }
 
+export interface ForecastRunSummary {
+  id: string;
+  status: RunStatus;
+  stage: string;
+  question: string;
+  category: string;
+  regions: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ForecastRunListResponse {
+  items: ForecastRunSummary[];
+  total: number;
+  limit: number;
+}
+
 export interface ForecastResult {
   run: ForecastRun;
   retrieval_plan: RetrievalPlan | null;

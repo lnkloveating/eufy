@@ -10,6 +10,7 @@ import {
 import type {
   ForecastOptions,
   ForecastRequest,
+  ForecastRunListResponse,
   ForecastResult,
   ForecastRun,
   HealthResponse,
@@ -45,11 +46,13 @@ import {
   getProductReadiness,
   getProductRevisions,
   getRunArtifacts,
+  listForecastRuns,
 } from "./api/forecastApi";
 
 export const queryKeys = {
   health: ["health"] as const,
   forecastOptions: ["forecast-options"] as const,
+  recentRuns: (limit: number) => ["forecast-runs", "recent", limit] as const,
   run: (runId: string) => ["forecast-run", runId] as const,
   result: (runId: string) => ["forecast-result", runId] as const,
   product: (productId: string) => ["product", productId] as const,
@@ -101,6 +104,17 @@ export function useCreateRun() {
   return useMutation<ForecastRun, ApiError, CreateRunVariables>({
     mutationFn: ({ request, idempotencyKey }) =>
       createForecastRun(request, idempotencyKey),
+  });
+}
+
+export function useRecentRuns(
+  limit = 3,
+): UseQueryResult<ForecastRunListResponse, ApiError> {
+  return useQuery<ForecastRunListResponse, ApiError>({
+    queryKey: queryKeys.recentRuns(limit),
+    queryFn: ({ signal }) => listForecastRuns(limit, signal),
+    staleTime: 30_000,
+    retry: 1,
   });
 }
 

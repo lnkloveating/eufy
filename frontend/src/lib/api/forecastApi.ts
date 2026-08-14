@@ -5,6 +5,7 @@ import type {
   Artifact,
   ForecastOptions,
   ForecastRequest,
+  ForecastRunListResponse,
   ForecastResult,
   ForecastRun,
   HealthResponse,
@@ -62,6 +63,13 @@ export function createForecastRun(
 
 export function getForecastRun(runId: string, signal?: AbortSignal): Promise<ForecastRun> {
   return request<ForecastRun>(`/forecast-runs/${encodeURIComponent(runId)}`, { signal });
+}
+
+export function listForecastRuns(
+  limit = 3,
+  signal?: AbortSignal,
+): Promise<ForecastRunListResponse> {
+  return request<ForecastRunListResponse>(`/forecast-runs?limit=${limit}`, { signal });
 }
 
 export function getForecastResult(

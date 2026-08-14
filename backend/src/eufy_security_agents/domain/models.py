@@ -799,6 +799,23 @@ class ForecastRun(BaseModel):
     updated_at: datetime
 
 
+class ForecastRunSummary(BaseModel):
+    id: str
+    status: RunStatus
+    stage: str
+    question: str
+    category: str
+    regions: list[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ForecastRunListResponse(BaseModel):
+    items: list[ForecastRunSummary]
+    total: int
+    limit: int
+
+
 class ForecastResult(BaseModel):
     run: ForecastRun
     retrieval_plan: RetrievalPlan | None = None

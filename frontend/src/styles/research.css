@@ -160,6 +160,18 @@
   text-decoration: none;
   box-shadow: var(--shadow-md);
 }
+.recent-entry-rich {
+  align-items: flex-start;
+  padding: var(--space-4);
+}
+.recent-entry-title {
+  min-width: 0;
+  flex: 1;
+  color: var(--ink-900);
+  font-size: var(--text-base);
+  font-weight: 560;
+  line-height: 1.45;
+}
 
 .advanced-toggle {
   width: 100%;

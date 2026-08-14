@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import clsx from "clsx";
 import {
@@ -8,6 +8,7 @@ import {
   ScrollText,
   Sparkles,
 } from "lucide-react";
+
 import { useHealth } from "../../lib/queries";
 import { getRecentProduct, getRecentRun } from "../../lib/recent";
 
@@ -39,12 +40,6 @@ export function AppShell() {
     <div className={clsx("shell", navCollapsed && "shell-nav-collapsed")}>
       <nav className="nav" aria-label="Primary navigation">
         <div className="nav-brand">
-          <div className="nav-brand-main">
-            <div className="nav-brand-text">
-              <span className="nav-brand-name">Eufy 产品研究台</span>
-            </div>
-          </div>
-
           <button
             type="button"
             className={clsx("nav-collapse-btn", navCollapsed && "is-collapsed")}

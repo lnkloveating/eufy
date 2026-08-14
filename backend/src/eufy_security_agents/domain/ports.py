@@ -11,6 +11,7 @@ from .models import (
     Artifact,
     ForecastRequest,
     ForecastRun,
+    ForecastRunSummary,
     ProductQuestionRecord,
     ProductRevision,
     ProductSelectionState,
@@ -43,6 +44,10 @@ class RunRepository(Protocol):
     ) -> tuple[ForecastRun, bool]: ...
 
     def get_run(self, run_id: str) -> ForecastRun | None: ...
+
+    def list_runs(self, *, limit: int = 20) -> list[ForecastRunSummary]: ...
+
+    def count_runs(self) -> int: ...
 
     def update_run(
         self,
