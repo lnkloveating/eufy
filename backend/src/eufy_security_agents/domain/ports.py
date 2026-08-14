@@ -11,9 +11,12 @@ from .models import (
     Artifact,
     ForecastRequest,
     ForecastRun,
+    ProductQuestionRecord,
+    ProductRevision,
     ProductSelectionState,
     ProductSpec,
     RunStatus,
+    SuggestionResolution,
 )
 
 TModel = TypeVar("TModel", bound=BaseModel)
@@ -34,6 +37,10 @@ class StructuredLLM(Protocol):
 
 class RunRepository(Protocol):
     def create_run(self, request: ForecastRequest) -> ForecastRun: ...
+
+    def get_or_create_run(
+        self, request: ForecastRequest, idempotency_key: str
+    ) -> tuple[ForecastRun, bool]: ...
 
     def get_run(self, run_id: str) -> ForecastRun | None: ...
 
@@ -59,6 +66,36 @@ class RunRepository(Protocol):
     def save_product(self, product: ProductSpec) -> None: ...
 
     def get_product(self, product_id: str) -> ProductSpec | None: ...
+
+    def save_question_record(
+        self, record: ProductQuestionRecord, *, idempotency_key: str | None
+    ) -> None: ...
+
+    def get_question_record(
+        self, product_id: str, question_id: str
+    ) -> ProductQuestionRecord | None: ...
+
+    def update_question_record(self, record: ProductQuestionRecord) -> None: ...
+
+    def list_question_records(self, product_id: str) -> list[ProductQuestionRecord]: ...
+
+    def find_question_record_by_key(
+        self, product_id: str, idempotency_key: str
+    ) -> ProductQuestionRecord | None: ...
+
+    def save_revision(
+        self, revision: ProductRevision, *, idempotency_key: str | None
+    ) -> None: ...
+
+    def list_revisions(self, product_id: str) -> list[ProductRevision]: ...
+
+    def find_revision_by_key(
+        self, product_id: str, idempotency_key: str
+    ) -> ProductRevision | None: ...
+
+    def save_suggestion_resolution(self, resolution: SuggestionResolution) -> None: ...
+
+    def list_suggestion_resolutions(self, product_id: str) -> list[SuggestionResolution]: ...
 
     def get_selection(self, run_id: str, idempotency_key: str) -> ProductSelectionState | None: ...
 

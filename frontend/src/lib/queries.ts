@@ -14,20 +14,36 @@ import type {
   ForecastRun,
   HealthResponse,
   Artifact,
+  IssueDismissRequest,
   KnowledgeCoverage,
+  ProductDefinitionReadiness,
+  ProductQuestionRecord,
+  ProductQuestionRequest,
+  ProductRevision,
+  ProductRevisionRequest,
   ProductSelectionRequest,
   ProductSpec,
+  SuggestionDismissRequest,
 } from "../types/api";
 import { ApiError } from "./api/client";
 import {
+  applyProductRevision,
+  askProductQuestion,
+  confirmProduct,
   createForecastRun,
   createSelection,
+  dismissDesignIssues,
+  dismissSuggestions,
+  generateIssueProposal,
   getForecastOptions,
   getForecastResult,
   getForecastRun,
   getHealth,
   getKnowledgeCoverage,
   getProduct,
+  getProductQuestions,
+  getProductReadiness,
+  getProductRevisions,
   getRunArtifacts,
 } from "./api/forecastApi";
 
@@ -39,6 +55,9 @@ export const queryKeys = {
   product: (productId: string) => ["product", productId] as const,
   artifacts: (runId: string) => ["forecast-artifacts", runId] as const,
   coverage: (regions: string[]) => ["knowledge-coverage", ...regions] as const,
+  productQuestions: (productId: string) => ["product-questions", productId] as const,
+  productRevisions: (productId: string) => ["product-revisions", productId] as const,
+  productReadiness: (productId: string) => ["product-readiness", productId] as const,
 };
 
 /** Health poll — refreshed periodically so connection status stays live. */
@@ -72,9 +91,16 @@ export function useKnowledgeCoverage(
   });
 }
 
+export interface CreateRunVariables {
+  request: ForecastRequest;
+  /** Client-supplied key so a double-click / retry creates at most one run. */
+  idempotencyKey?: string;
+}
+
 export function useCreateRun() {
-  return useMutation<ForecastRun, ApiError, ForecastRequest>({
-    mutationFn: (request) => createForecastRun(request),
+  return useMutation<ForecastRun, ApiError, CreateRunVariables>({
+    mutationFn: ({ request, idempotencyKey }) =>
+      createForecastRun(request, idempotencyKey),
   });
 }
 
@@ -150,5 +176,115 @@ export function useProduct(
     queryFn: ({ signal }) => getProduct(productId as string, signal),
     enabled: Boolean(productId),
     retry: (failureCount, error) => !error.isNotFound && failureCount < 2,
+  });
+}
+
+/* ---------- Product Definition Workbench ---------- */
+
+export function useProductQuestions(
+  productId: string | undefined,
+): UseQueryResult<ProductQuestionRecord[], ApiError> {
+  return useQuery<ProductQuestionRecord[], ApiError>({
+    queryKey: queryKeys.productQuestions(productId ?? "unknown"),
+    queryFn: ({ signal }) => getProductQuestions(productId as string, signal),
+    enabled: Boolean(productId),
+    retry: (failureCount, error) => !error.isNotFound && failureCount < 2,
+  });
+}
+
+export function useProductRevisions(
+  productId: string | undefined,
+): UseQueryResult<ProductRevision[], ApiError> {
+  return useQuery<ProductRevision[], ApiError>({
+    queryKey: queryKeys.productRevisions(productId ?? "unknown"),
+    queryFn: ({ signal }) => getProductRevisions(productId as string, signal),
+    enabled: Boolean(productId),
+    retry: (failureCount, error) => !error.isNotFound && failureCount < 2,
+  });
+}
+
+export function useProductReadiness(
+  productId: string | undefined,
+): UseQueryResult<ProductDefinitionReadiness, ApiError> {
+  return useQuery<ProductDefinitionReadiness, ApiError>({
+    queryKey: queryKeys.productReadiness(productId ?? "unknown"),
+    queryFn: ({ signal }) => getProductReadiness(productId as string, signal),
+    enabled: Boolean(productId),
+    retry: (failureCount, error) => !error.isNotFound && failureCount < 2,
+  });
+}
+
+/** Refresh product, questions, revisions and readiness after a workbench change. */
+function useInvalidateWorkbench(productId: string) {
+  const queryClient = useQueryClient();
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.product(productId) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.productQuestions(productId) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.productRevisions(productId) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.productReadiness(productId) });
+  };
+}
+
+export function useAskProductQuestion(productId: string) {
+  const invalidate = useInvalidateWorkbench(productId);
+  return useMutation<ProductQuestionRecord, ApiError, ProductQuestionRequest>({
+    mutationFn: (body) => askProductQuestion(productId, body),
+    onSuccess: invalidate,
+  });
+}
+
+export function useApplyProductRevision(productId: string) {
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateWorkbench(productId);
+  return useMutation<ProductSpec, ApiError, ProductRevisionRequest>({
+    mutationFn: (body) => applyProductRevision(productId, body),
+    onSuccess: (product) => {
+      queryClient.setQueryData(queryKeys.product(product.id), product);
+      invalidate();
+    },
+  });
+}
+
+export function useDismissSuggestions(productId: string) {
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateWorkbench(productId);
+  return useMutation<ProductDefinitionReadiness, ApiError, SuggestionDismissRequest>({
+    mutationFn: (body) => dismissSuggestions(productId, body),
+    onSuccess: (readiness) => {
+      queryClient.setQueryData(queryKeys.productReadiness(productId), readiness);
+      invalidate();
+    },
+  });
+}
+
+export function useGenerateIssueProposal(productId: string) {
+  const invalidate = useInvalidateWorkbench(productId);
+  return useMutation<ProductQuestionRecord, ApiError, string>({
+    mutationFn: (questionId) => generateIssueProposal(productId, questionId),
+    onSuccess: invalidate,
+  });
+}
+
+export function useDismissDesignIssues(productId: string) {
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateWorkbench(productId);
+  return useMutation<ProductDefinitionReadiness, ApiError, IssueDismissRequest>({
+    mutationFn: (body) => dismissDesignIssues(productId, body),
+    onSuccess: (readiness) => {
+      queryClient.setQueryData(queryKeys.productReadiness(productId), readiness);
+      invalidate();
+    },
+  });
+}
+
+export function useConfirmProduct(productId: string) {
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateWorkbench(productId);
+  return useMutation<ProductSpec, ApiError, void>({
+    mutationFn: () => confirmProduct(productId),
+    onSuccess: (product) => {
+      queryClient.setQueryData(queryKeys.product(product.id), product);
+      invalidate();
+    },
   });
 }

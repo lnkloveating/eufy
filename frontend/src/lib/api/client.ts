@@ -98,6 +98,8 @@ export interface RequestOptions {
   method?: string;
   body?: unknown;
   signal?: AbortSignal;
+  /** Extra request headers (e.g. an Idempotency-Key for safe retries). */
+  headers?: Record<string, string>;
 }
 
 /**
@@ -111,7 +113,7 @@ export async function request<T>(
   const url = `${API_BASE_URL}${path}`;
   const init: RequestInit = {
     method: options.method ?? "GET",
-    headers: { Accept: "application/json" },
+    headers: { Accept: "application/json", ...options.headers },
     signal: options.signal,
   };
 

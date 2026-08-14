@@ -7,7 +7,7 @@ import json
 from collections.abc import AsyncIterator
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 
 from eufy_security_agents.core.config import get_settings
@@ -17,14 +17,22 @@ from eufy_security_agents.domain.models import (
     ForecastRequest,
     ForecastResult,
     ForecastRun,
+    IssueDismissRequest,
     KnowledgeCoverage,
+    ProductDefinitionReadiness,
+    ProductQuestionRecord,
+    ProductQuestionRequest,
+    ProductRevision,
+    ProductRevisionRequest,
     ProductSelectionRequest,
     ProductSpec,
     RankedCandidate,
     RetrievalPreview,
     RunStatus,
+    SuggestionDismissRequest,
 )
 from eufy_security_agents.domain.strategy import strategy_presets
+from eufy_security_agents.orchestration.workflow import DefinitionNotReadyError
 
 from .dependencies import competitor_store, evidence_store, repository, workflow
 
@@ -179,10 +187,19 @@ async def forecast_options() -> dict[str, object]:
     tags=["forecasting"],
 )
 async def create_forecast_run(
-    request: ForecastRequest, background_tasks: BackgroundTasks
+    request: ForecastRequest,
+    background_tasks: BackgroundTasks,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> ForecastRun:
-    run_id = workflow.create(request)
-    background_tasks.add_task(workflow.execute, run_id)
+    # An optional client-supplied idempotency key makes a double-click or retry
+    # return the same run instead of spawning a second background task. The
+    # background execution is scheduled only when a run is genuinely created.
+    if idempotency_key:
+        run_id, created = workflow.create_idempotent(request, idempotency_key)
+    else:
+        run_id, created = workflow.create(request), True
+    if created:
+        background_tasks.add_task(workflow.execute, run_id)
     run = repository.get_run(run_id)
     if run is None:  # pragma: no cover - defensive persistence check
         raise HTTPException(status_code=500, detail="forecast run was not persisted")
@@ -299,3 +316,138 @@ async def get_product(product_id: str) -> ProductSpec:
     if product is None:
         raise HTTPException(status_code=404, detail="product not found")
     return product
+
+
+@router.post(
+    "/products/{product_id}/questions",
+    response_model=ProductQuestionRecord,
+    status_code=status.HTTP_201_CREATED,
+    tags=["products"],
+)
+async def ask_product_question(
+    product_id: str, request: ProductQuestionRequest
+) -> ProductQuestionRecord:
+    try:
+        return await workflow.answer_product_question(product_id, request)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="product not found") from exc
+
+
+@router.get(
+    "/products/{product_id}/questions",
+    response_model=list[ProductQuestionRecord],
+    tags=["products"],
+)
+async def list_product_questions(product_id: str) -> list[ProductQuestionRecord]:
+    try:
+        return workflow.list_product_questions(product_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="product not found") from exc
+
+
+@router.post(
+    "/products/{product_id}/questions/{question_id}/proposal",
+    response_model=ProductQuestionRecord,
+    status_code=status.HTTP_201_CREATED,
+    tags=["products"],
+)
+async def generate_issue_proposal(product_id: str, question_id: str) -> ProductQuestionRecord:
+    try:
+        return await workflow.generate_issue_proposal(product_id, question_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="product not found") from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post(
+    "/products/{product_id}/issues/dismiss",
+    response_model=ProductDefinitionReadiness,
+    tags=["products"],
+)
+async def dismiss_design_issues(
+    product_id: str, request: IssueDismissRequest
+) -> ProductDefinitionReadiness:
+    try:
+        return workflow.resolve_design_issues(product_id, request.issue_ids)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="product not found") from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get(
+    "/products/{product_id}/revisions",
+    response_model=list[ProductRevision],
+    tags=["products"],
+)
+async def list_product_revisions(product_id: str) -> list[ProductRevision]:
+    try:
+        return workflow.list_product_revisions(product_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="product not found") from exc
+
+
+@router.post(
+    "/products/{product_id}/revisions",
+    response_model=ProductSpec,
+    status_code=status.HTTP_201_CREATED,
+    tags=["products"],
+)
+async def revise_product(product_id: str, request: ProductRevisionRequest) -> ProductSpec:
+    try:
+        return await workflow.revise_product(product_id, request)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="product not found") from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post(
+    "/products/{product_id}/suggestions/dismiss",
+    response_model=ProductDefinitionReadiness,
+    tags=["products"],
+)
+async def dismiss_suggestions(
+    product_id: str, request: SuggestionDismissRequest
+) -> ProductDefinitionReadiness:
+    try:
+        return workflow.resolve_suggestions(product_id, request.suggestion_ids)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="product not found") from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get(
+    "/products/{product_id}/readiness",
+    response_model=ProductDefinitionReadiness,
+    tags=["products"],
+)
+async def get_product_readiness(product_id: str) -> ProductDefinitionReadiness:
+    try:
+        return workflow.product_readiness(product_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="product not found") from exc
+
+
+@router.post(
+    "/products/{product_id}/confirm",
+    response_model=ProductSpec,
+    tags=["products"],
+)
+async def confirm_product(product_id: str) -> ProductSpec:
+    try:
+        return workflow.confirm_product(product_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="product not found") from exc
+    except DefinitionNotReadyError as exc:
+        blocking = len(exc.readiness.blocking_items)
+        raise HTTPException(
+            status_code=409,
+            detail=f"产品定义尚未满足验证准备度：还有 {blocking} 项阻塞项待处理",
+        ) from exc

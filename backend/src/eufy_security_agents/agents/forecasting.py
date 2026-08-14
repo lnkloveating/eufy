@@ -11,6 +11,8 @@ from eufy_security_agents.domain.models import (
     CandidatePairSimilarity,
     CompetitiveAnalysis,
     CompetitiveAnalysisEnvelope,
+    CompetitiveGapsEnvelope,
+    CompetitiveLandscapeEnvelope,
     CompetitorRecord,
     CurrentCapabilityBaseline,
     CurrentCapabilityBaselineEnvelope,
@@ -28,9 +30,15 @@ from eufy_security_agents.domain.models import (
     Opportunity,
     OpportunityEnvelope,
     PortfolioDiversityAuditEnvelope,
+    ProductAnswerDraft,
+    ProductAnswerEnvelope,
     ProductCandidate,
+    ProductDesignIssue,
+    ProductProposalEnvelope,
     ProductSelectionRequest,
+    ProductSpec,
     ProductSpecEnvelope,
+    QuestionCategory,
     RankedCandidate,
     ReviewEnvelope,
 )
@@ -450,6 +458,49 @@ class PortfolioDiversityAuditorAgent(BaseAgent):
             user_prompt=prompt,
             response_model=PortfolioDiversityAuditEnvelope,
             temperature=0.1,
+        )
+
+    async def repair(
+        self,
+        request: ForecastRequest,
+        candidates: list[ProductCandidate],
+        novelty_audit: NoveltyAudit,
+        malformed_notes: list[str],
+    ) -> AgentOutput[PortfolioDiversityAuditEnvelope]:
+        """One targeted correction pass after a malformed pairwise audit.
+
+        The backend has already repaired the response deterministically; this
+        only gives the model a chance to supply better *semantic* judgments for
+        the exact expected pair list. Temperature is pinned low for stability.
+        """
+
+        candidate_ids = [item.id for item in candidates]
+        expected_pairs = [
+            [left, right]
+            for index, left in enumerate(candidate_ids)
+            for right in candidate_ids[index + 1 :]
+        ]
+        prompt = (
+            f"Research brief:\n{compact_json(request)}\n\n"
+            f"Candidates:\n{compact_json(candidates)}\n\n"
+            f"Novelty assessments:\n{compact_json(novelty_audit)}\n\n"
+            "The previous pairwise audit was malformed and had to be repaired by the "
+            f"backend: {malformed_notes}. Return exactly one pair_assessment for EVERY "
+            f"unordered pair in this exact list, once each, using the shown order: "
+            f"{expected_pairs}. Each pair's candidate_a_id and candidate_b_id must be two "
+            "different candidate IDs drawn only from the list above. Do not invent IDs, do "
+            "not skip a pair, and do not repeat a pair. Judge semantic overlap only; the "
+            "backend owns the final duplicate threshold and which candidate survives. "
+            "Use the user's primary language."
+        )
+        return await self._generate(
+            system_prompt=(
+                "You are an adversarial product-portfolio editor correcting a malformed "
+                "audit. Return one assessment per requested pair, exactly once."
+            ),
+            user_prompt=prompt,
+            response_model=PortfolioDiversityAuditEnvelope,
+            temperature=0.0,
         )
 
 
@@ -955,37 +1006,175 @@ class CandidateReviewerAgent(BaseAgent):
         return output
 
 
+COMPETITOR_ANALYSIS_SYSTEM = (
+    "You are a rigorous consumer-security competitive-intelligence strategist. "
+    "Your role is to prevent copycat products and expose testable market white space, "
+    "not to force a predetermined concept."
+)
+
+# Output caps keep the analysis under the provider output-token limit and are
+# stated identically in the prompt and enforced deterministically by the
+# backend, so a verbose model can never truncate the whole stage.
+COMPETITIVE_OUTPUT_CAPS = {
+    "market_patterns": 5,
+    "established_capabilities": 5,
+    "per_brand": 3,
+    "underserved_needs": 5,
+    "subscription_or_lock_in_gaps": 4,
+    "privacy_and_interoperability_gaps": 4,
+    "per_region": 3,
+    "gaps": 4,
+    "design_implications": 3,
+}
+
+
+def _competitor_analysis_projection(records: list[CompetitorRecord]) -> list[dict[str, object]]:
+    """Compact competitor view: only the fields competitive analysis needs.
+
+    Long, repeated context (source URLs, retrieval timestamps, tags) is dropped
+    so the same records never bloat the prompt, which is the primary driver of
+    the 6000-token output truncation seen in production.
+    """
+    return [
+        {
+            "id": item.id,
+            "brand": item.brand,
+            "product_name": item.product_name,
+            "verified_capabilities": item.verified_capabilities,
+            "documented_constraints": item.documented_constraints,
+            "business_model": item.business_model,
+            "privacy_and_storage": item.privacy_and_storage,
+            "interoperability": item.interoperability,
+            "regions": item.regions,
+        }
+        for item in records
+    ]
+
+
+def _opportunity_projection(opportunities: list[Opportunity]) -> list[dict[str, object]]:
+    """Only the opportunity fields competitive analysis links gaps against."""
+    return [
+        {
+            "id": item.id,
+            "title": item.title,
+            "unmet_job": item.unmet_job,
+            "target_regions": item.target_regions,
+        }
+        for item in opportunities
+    ]
+
+
 class CompetitorAnalysisAgent(BaseAgent):
     name = "competitor-analysis"
+
+    def _output_cap_instructions(self, *, gap_min: int, gap_max: int) -> str:
+        caps = COMPETITIVE_OUTPUT_CAPS
+        return (
+            "Keep every list short and use crisp phrases, not paragraphs; do not repeat the "
+            "research brief back. Hard limits: "
+            f"market_patterns ≤ {caps['market_patterns']}, established_capabilities "
+            f"≤ {caps['established_capabilities']}, each brand's strengths and limitations "
+            f"≤ {caps['per_brand']}, underserved_needs ≤ {caps['underserved_needs']}, "
+            f"subscription_or_lock_in_gaps ≤ {caps['subscription_or_lock_in_gaps']}, "
+            f"privacy_and_interoperability_gaps ≤ "
+            f"{caps['privacy_and_interoperability_gaps']}, each region in regional_differences "
+            f"≤ {caps['per_region']} items, {gap_min}-{gap_max} gaps, each gap's "
+            f"design_implications ≤ {caps['design_implications']}."
+        )
 
     async def run(
         self,
         request: ForecastRequest,
         opportunities: list[Opportunity],
         competitor_evidence: list[CompetitorRecord],
+        *,
+        compact: bool = False,
     ) -> AgentOutput[CompetitiveAnalysisEnvelope]:
+        gap_min, gap_max = (2, 3) if compact else (3, 4)
+        compact_note = (
+            "This is a size-reduced retry: the previous attempt exceeded the output limit. "
+            "Return only the most necessary items, prefer the strongest few gaps, and omit "
+            "low-value detail rather than truncating mid-JSON. "
+            if compact
+            else ""
+        )
         prompt = (
             f"Research brief:\n{compact_json(request)}\n\n"
-            f"Future opportunity portfolio:\n{compact_json(opportunities)}\n\n"
-            f"Official competitor records:\n{compact_json(competitor_evidence)}\n\n"
+            f"Future opportunity portfolio:\n"
+            f"{compact_json(_opportunity_projection(opportunities))}\n\n"
+            f"Official competitor records (compact):\n"
+            f"{compact_json(_competitor_analysis_projection(competitor_evidence))}\n\n"
             "Analyze the competitive landscape after opportunity discovery and before product "
             "design. Identify established capabilities, documented strengths and constraints, "
-            "subscription or lock-in gaps, privacy/interoperability gaps, and 3-6 meaningful "
-            "white spaces. Link each gap to opportunity IDs and competitor evidence IDs. "
-            "Do not equate absence from a source with absence from a product. Distinguish official "
-            "claims from your synthesis. Do not design or name the final eufy products yet. "
-            "Populate regional_differences for every requested region. Use GAP-001 style IDs and "
-            "the user's primary language."
+            "subscription or lock-in gaps, privacy/interoperability gaps, and meaningful white "
+            "spaces. Link each gap to opportunity IDs and competitor evidence IDs. Do not equate "
+            "absence from a source with absence from a product. Distinguish official claims from "
+            "your synthesis. Do not design or name the final eufy products yet. Populate "
+            "regional_differences for every requested region. Use GAP-001 style IDs and the "
+            "user's primary language.\n"
+            f"{compact_note}{self._output_cap_instructions(gap_min=gap_min, gap_max=gap_max)}"
         )
         return await self._generate(
-            system_prompt=(
-                "You are a rigorous consumer-security competitive-intelligence strategist. "
-                "Your role is to prevent copycat products and expose testable market white space, "
-                "not to force a predetermined concept."
-            ),
+            system_prompt=COMPETITOR_ANALYSIS_SYSTEM,
             user_prompt=prompt,
             response_model=CompetitiveAnalysisEnvelope,
-            temperature=0.35,
+            temperature=0.3 if compact else 0.35,
+        )
+
+    async def summarize_landscape(
+        self,
+        request: ForecastRequest,
+        opportunities: list[Opportunity],
+        competitor_evidence: list[CompetitorRecord],
+    ) -> AgentOutput[CompetitiveLandscapeEnvelope]:
+        """First half of the split fallback: the landscape summary, no gaps."""
+        caps = COMPETITIVE_OUTPUT_CAPS
+        prompt = (
+            f"Research brief:\n{compact_json(request)}\n\n"
+            f"Competitor records (compact):\n"
+            f"{compact_json(_competitor_analysis_projection(competitor_evidence))}\n\n"
+            "Summarize ONLY the competitive landscape (no white-space gaps). Provide "
+            "market_patterns, established_capabilities, competitor_strengths, "
+            "competitor_limitations, underserved_needs, subscription_or_lock_in_gaps, "
+            "privacy_and_interoperability_gaps and regional_differences. Distinguish official "
+            "claims from synthesis; never treat absence from a source as absence from a product. "
+            f"Hard limits: market_patterns ≤ {caps['market_patterns']}, "
+            f"established_capabilities ≤ {caps['established_capabilities']}, each brand "
+            f"≤ {caps['per_brand']}, each list ≤ {caps['underserved_needs']}. "
+            "Use the user's primary language."
+        )
+        return await self._generate(
+            system_prompt=COMPETITOR_ANALYSIS_SYSTEM,
+            user_prompt=prompt,
+            response_model=CompetitiveLandscapeEnvelope,
+            temperature=0.3,
+        )
+
+    async def identify_gaps(
+        self,
+        request: ForecastRequest,
+        opportunities: list[Opportunity],
+        competitor_evidence: list[CompetitorRecord],
+    ) -> AgentOutput[CompetitiveGapsEnvelope]:
+        """Second half of the split fallback: the white-space gaps only."""
+        caps = COMPETITIVE_OUTPUT_CAPS
+        prompt = (
+            f"Research brief:\n{compact_json(request)}\n\n"
+            f"Future opportunity portfolio:\n"
+            f"{compact_json(_opportunity_projection(opportunities))}\n\n"
+            f"Competitor records (compact):\n"
+            f"{compact_json(_competitor_analysis_projection(competitor_evidence))}\n\n"
+            f"Return ONLY {caps['gaps']} or fewer meaningful competitive white-space gaps. Link "
+            "each gap to opportunity IDs (OPP-*) and competitor evidence IDs (COMP-*) that are "
+            "present above; never invent IDs. Use GAP-001 style IDs. Each gap's "
+            f"design_implications ≤ {caps['design_implications']}. Use the user's primary "
+            "language."
+        )
+        return await self._generate(
+            system_prompt=COMPETITOR_ANALYSIS_SYSTEM,
+            user_prompt=prompt,
+            response_model=CompetitiveGapsEnvelope,
+            temperature=0.3,
         )
 
 
@@ -1053,4 +1242,206 @@ class ProductDefinitionAgent(BaseAgent):
         return AgentOutput(
             value=ProductSpecEnvelope(product=product),
             metadata=output.metadata,
+        )
+
+
+PRODUCT_ANALYST_SYSTEM = (
+    "你是 eufy 未来产品的『产品定义审查 Agent』（ProductSpec Analyst）。你的默认职责是"
+    "解释当前 ProductSpec，而不是每次都提出修改。硬性规则：(1) 不得把设计假设描述成既成事实；"
+    "(2) 不得声称技术、商业、隐私或场景验证已经通过——这些结论只能由后续验证实验室产生；"
+    "(3) 不得为了维护原 ProductSpec 而忽略真实缺陷；(4) 当提供的资料不足时，必须明确回答"
+    "『当前资料不足』并把相应结论标为 insufficient_evidence；(5) 只能引用后端在本次提示中真实"
+    "提供的 EV-* 与 COMP-* 编号，绝不允许编造，也绝不允许把 OPP-*、CAND-* 或产品名称放进 "
+    "evidence_ids；(6) 使用用户提问所用的主要语言作答。\n\n"
+    "Most user questions are requests to understand the existing design. Answer them "
+    "directly from the current ProductSpec. Do not propose a revision merely because an "
+    "alternative design is possible. Identify a design issue only when the current "
+    "specification is missing a necessary decision, internally inconsistent, unsupported, or "
+    "conflicts with the research brief. Never generate a product revision unless the user "
+    "explicitly requests a change or asks to turn a detected issue into a proposal."
+)
+
+
+class ProductSpecAnalystAgent(BaseAgent):
+    """Answers user questions about a ProductSpec without defending it blindly."""
+
+    name = "product-spec-analyst"
+    prompt_version = "1.0"
+
+    async def answer(
+        self,
+        *,
+        question: str,
+        category: QuestionCategory,
+        context_prompt: str,
+        allowed_evidence_ids: list[str],
+        allowed_competitor_ids: list[str],
+        sections: list[str],
+    ) -> AgentOutput[ProductAnswerEnvelope]:
+        prompt = self._compose_prompt(
+            question=question,
+            category=category,
+            context_prompt=context_prompt,
+            allowed_evidence_ids=allowed_evidence_ids,
+            allowed_competitor_ids=allowed_competitor_ids,
+            sections=sections,
+        )
+        return await self._generate(
+            system_prompt=PRODUCT_ANALYST_SYSTEM,
+            user_prompt=prompt,
+            response_model=ProductAnswerEnvelope,
+            temperature=0.3,
+        )
+
+    async def repair(
+        self,
+        *,
+        question: str,
+        category: QuestionCategory,
+        context_prompt: str,
+        previous: ProductAnswerDraft,
+        invalid_ids: list[str],
+        allowed_evidence_ids: list[str],
+        allowed_competitor_ids: list[str],
+        sections: list[str],
+    ) -> AgentOutput[ProductAnswerEnvelope]:
+        base_prompt = self._compose_prompt(
+            question=question,
+            category=category,
+            context_prompt=context_prompt,
+            allowed_evidence_ids=allowed_evidence_ids,
+            allowed_competitor_ids=allowed_competitor_ids,
+            sections=sections,
+        )
+        prompt = (
+            f"{base_prompt}\n\n"
+            f"修复要求：上一次回答引用了不存在的编号 {sorted(invalid_ids)}。请返回修正后的同一"
+            f"回答：evidence_ids 只能来自 {allowed_evidence_ids}，competitor_evidence_ids 只能"
+            f"来自 {allowed_competitor_ids}。删除任何无法在提供资料中找到的编号；如果某条结论因此"
+            "失去证据支撑，请把它的 epistemic_status 下调为 reasoned_inference 或 "
+            "insufficient_evidence。不要改变事实立场，只修复引用错误。\n\n"
+            f"上一次回答：\n{compact_json(previous)}"
+        )
+        return await self._generate(
+            system_prompt=PRODUCT_ANALYST_SYSTEM,
+            user_prompt=prompt,
+            response_model=ProductAnswerEnvelope,
+            temperature=0.1,
+        )
+
+    async def propose(
+        self,
+        *,
+        design_issue: ProductDesignIssue,
+        context_prompt: str,
+        sections: list[str],
+    ) -> AgentOutput[ProductProposalEnvelope]:
+        prompt = (
+            f"{context_prompt}\n\n"
+            "用户已确认，要针对下面这个已发现的产品定义缺口生成修改方案：\n"
+            f"{compact_json(design_issue)}\n\n"
+            f"请生成 1-3 条具体的 suggested_changes，仅可涉及这些章节 {sections}；每条包含 "
+            "section、current_summary（当前定义摘要）、proposed_change（建议修改）、rationale"
+            "（理由）。修改必须直接回应该缺口，不得声称任何验证已经通过；尚未证实的新增内容应体现"
+            "为假设或验证项。使用用户的主要语言。"
+        )
+        return await self._generate(
+            system_prompt=PRODUCT_ANALYST_SYSTEM,
+            user_prompt=prompt,
+            response_model=ProductProposalEnvelope,
+            temperature=0.3,
+        )
+
+    @staticmethod
+    def _compose_prompt(
+        *,
+        question: str,
+        category: QuestionCategory,
+        context_prompt: str,
+        allowed_evidence_ids: list[str],
+        allowed_competitor_ids: list[str],
+        sections: list[str],
+    ) -> str:
+        return (
+            f"{context_prompt}\n\n"
+            f"用户问题（自动分类：{category.value}）：\n{question}\n\n"
+            "请先判断本次问题的处理模式 answer_mode，再输出结构化 JSON：\n"
+            "- answer_mode=explanation：用户只是想了解当前设计。直接解释即可，"
+            "design_issue 必须为 null，suggested_changes 必须为空数组。\n"
+            "- answer_mode=issue_detected：你在解释过程中发现当前 ProductSpec 存在真实缺口"
+            "（缺少必要决策、内部矛盾、关键说法缺证据且未标为假设、与研究条件/地区/用户约束冲突、"
+            "某能力无法对应硬件/AI 机制/用户旅程、或某风险没有缓解或验证假设）。此时先正常回答，再"
+            "返回一个 design_issue，但 suggested_changes 仍必须为空数组，不要直接给出修改。"
+            "『还可以设计得更好』不算缺口，不要为了展示能力而刻意找茬。\n"
+            "- answer_mode=change_request：用户明确要求修改设计。此时 design_issue=null，并在 "
+            "suggested_changes 返回修改方案。\n\n"
+            "字段要求：\n"
+            "- direct_answer：用用户提问的主要语言直接、诚实地回答问题。\n"
+            "- claims：把回答拆成若干条结论，每条给出 text 与 epistemic_status，取值只能是 "
+            "evidence_supported / reasoned_inference / design_assumption / "
+            "insufficient_evidence。标为 evidence_supported 的结论必须提供 evidence_ids，"
+            f"且只能来自 {allowed_evidence_ids}；涉及竞品对比时 competitor_evidence_ids 只能来自 "
+            f"{allowed_competitor_ids}。\n"
+            "- assumptions：当前产品定义所依赖、但尚未证实的设计假设。\n"
+            "- unknowns：以现有资料无法回答、需要后续验证的问题。\n"
+            f"- affected_sections：仅可从 {sections} 中选择受影响的 ProductSpec 章节键。\n"
+            "- design_issue（仅 issue_detected 时非空）：title、description、affected_sections"
+            f"（取自 {sections}）、severity、reason、"
+            "blocks_readiness（该缺口是否影响验证准备度）。\n"
+            "- suggested_changes（仅 change_request 时非空）：每条包含 "
+            f"section（取自 {sections}）、current_summary（当前定义摘要）、"
+            "proposed_change（建议修改）、rationale（理由）。\n"
+            "严禁编造未提供的 EV/COMP/OPP/CAND 编号；资料不足时必须显式说明『当前资料不足』，"
+            "不要把设计假设当成事实，也不要声称任何验证已经通过。"
+        )
+
+
+PRODUCT_REVISER_SYSTEM = (
+    "你是首席产品定义负责人。用户已经明确接受了一组对现有 ProductSpec 的修改建议，"
+    "你需要据此生成新版本的产品定义。你不得声称任何技术、商业、隐私或场景验证已经通过，"
+    "也不得凭空替换产品身份。"
+)
+
+
+class ProductSpecReviserAgent(BaseAgent):
+    """Regenerates a ProductSpec incorporating only user-accepted changes."""
+
+    name = "product-spec-reviser"
+    prompt_version = "1.0"
+
+    async def run(
+        self,
+        *,
+        product: ProductSpec,
+        accepted_changes: list[dict[str, str]],
+        evidence: list[EvidenceRecord],
+        competitor_evidence: list[CompetitorRecord],
+        change_reason: str,
+    ) -> AgentOutput[ProductSpecEnvelope]:
+        valid_evidence_ids = [item.id for item in evidence]
+        valid_competitor_ids = [item.id for item in competitor_evidence]
+        prompt = (
+            f"当前 ProductSpec（版本 {product.version}）：\n{compact_json(product)}\n\n"
+            f"用户已接受的修改建议：\n{compact_json(accepted_changes)}\n\n"
+            f"修改原因：{change_reason}\n\n"
+            f"可引用的本地证据摘要：\n{compact_json(_evidence_digest(evidence))}\n\n"
+            f"可引用的竞品记录：\n{compact_json(_competitor_digest(competitor_evidence))}\n\n"
+            "请返回完整的、更新后的 ProductSpec JSON。规则：\n"
+            "1. 只实施用户已接受的修改，不要引入未被接受的其它改动。\n"
+            "2. disposition=apply 时直接修改对应章节；disposition=as_risk 时把该建议转化为一条"
+            "风险项（risks，含 mitigation）；disposition=as_hypothesis 时把该建议转化为一条"
+            "可证伪的验证假设（validation_readiness）。\n"
+            "3. 必须保留产品的核心身份、name、core_problem 主线与 capability_delta，不得把它替换"
+            "成另一个产品，也不得无理由删除 capability_delta。\n"
+            "4. 不得声称任何验证已经通过；新增内容若尚未证实应体现在 key_assumptions、risks 或 "
+            "validation_readiness 中。\n"
+            f"5. evidence_ids 只能来自 {valid_evidence_ids}；competitive_positioning."
+            f"competitor_evidence_ids 只能来自 {valid_competitor_ids}；不要编造编号。\n"
+            "6. 使用与当前 ProductSpec 相同的主要语言。"
+        )
+        return await self._generate(
+            system_prompt=PRODUCT_REVISER_SYSTEM,
+            user_prompt=prompt,
+            response_model=ProductSpecEnvelope,
+            temperature=0.3,
         )

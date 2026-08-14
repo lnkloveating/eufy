@@ -42,6 +42,15 @@ def test_forecast_options_expose_strategy_presets() -> None:
         assert abs(sum(preset["weights"].values()) - 1.0) < 1e-9
 
 
+def test_product_workbench_endpoints_reject_unknown_product() -> None:
+    client = TestClient(create_app())
+    assert client.get("/api/v1/products/does-not-exist").status_code == 404
+    assert client.get("/api/v1/products/does-not-exist/questions").status_code == 404
+    assert client.get("/api/v1/products/does-not-exist/revisions").status_code == 404
+    assert client.get("/api/v1/products/does-not-exist/readiness").status_code == 404
+    assert client.post("/api/v1/products/does-not-exist/confirm").status_code == 404
+
+
 def test_knowledge_coverage_and_retrieval_preview_are_auditable() -> None:
     client = TestClient(create_app())
     coverage = client.get("/api/v1/knowledge/coverage", params={"regions": "China"})

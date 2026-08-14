@@ -95,6 +95,37 @@ function ConnectionPill({ state }: { state: ConnectionState }) {
   );
 }
 
+export interface DegradationInfo {
+  degraded: boolean;
+  count: number;
+  reasons: { stage: string; reason: string }[];
+}
+
+/**
+ * Read the terminal run_completed event's degraded metadata. A degraded run is
+ * still COMPLETED (never FAILED) but must be shown honestly — not as a fully
+ * verified analysis.
+ */
+export function deriveDegradation(events: AgentEvent[]): DegradationInfo {
+  const completed = events.find((event) => event.event_type === "run_completed");
+  const payload = completed?.payload as
+    | {
+        degraded?: boolean;
+        degradation_count?: number;
+        degradations?: { stage: string; reason: string }[];
+      }
+    | undefined;
+  if (payload?.degraded) {
+    const reasons = Array.isArray(payload.degradations) ? payload.degradations : [];
+    return {
+      degraded: true,
+      count: payload.degradation_count ?? reasons.length,
+      reasons,
+    };
+  }
+  return { degraded: false, count: 0, reasons: [] };
+}
+
 function completedAgentCount(events: AgentEvent[]): number {
   const done = new Set<string>();
   for (const event of events) {
@@ -363,14 +394,15 @@ function ResearchReport({
   events: AgentEvent[];
 }) {
   const metrics = aggregateArtifactMetrics(artifacts);
-
+  const degradation = deriveDegradation(events);
   return (
     <div className="stack stack-5">
       <div className="card card-pad research-summary">
         <div className="row between wrap row-gap-2" style={{ alignItems: "flex-start" }}>
           <span className="eyebrow">Research Report · 研究总览</span>
-          <span className="badge badge-completed">
-            <CheckCircle2 size={12} aria-hidden="true" /> 研究完成
+          <span className={`badge ${degradation.degraded ? "badge-degraded" : "badge-completed"}`}>
+            <CheckCircle2 size={12} aria-hidden="true" />
+            {degradation.degraded ? "已降级完成" : "研究完成"}
           </span>
         </div>
         <div className="summary-grid">
@@ -399,16 +431,45 @@ function ResearchReport({
             label="研究耗时"
             value={formatDurationMs(metrics.totalDurationMs)}
           />
+          {degradation.degraded && (
+            <SummaryStat
+              icon={<AlertTriangle size={12} aria-hidden="true" />}
+              label="降级环节"
+              value={`${degradation.count} 项`}
+            />
+          )}
         </div>
       </div>
 
-      <div className="alert alert-success" role="status">
-        <CheckCircle2 size={18} className="alert-icon" aria-hidden="true" />
-        <div className="alert-body">
-          <span className="alert-title">研究完成，等待人工选择</span>
-          <span>请在“产品候选”中对比方案，并自由选择任意方向生成标准 ProductSpec。</span>
+      {degradation.degraded ? (
+        <div className="alert alert-warn" role="status">
+          <AlertTriangle size={18} className="alert-icon" aria-hidden="true" />
+          <div className="alert-body">
+            <span className="alert-title">研究已降级继续完成，等待人工选择</span>
+            <span>
+              以下环节因模型限制或个别 Agent 失败而降级，其余分析已正常完成。结果并非“完整验证”，
+              请结合降级说明查看：
+            </span>
+            {degradation.reasons.length > 0 && (
+              <ul className="degraded-reasons">
+                {degradation.reasons.map((item, index) => (
+                  <li key={`${item.stage}-${index}`}>
+                    <span className="chip chip-outline">{item.stage}</span> {item.reason}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="alert alert-success" role="status">
+          <CheckCircle2 size={18} className="alert-icon" aria-hidden="true" />
+          <div className="alert-body">
+            <span className="alert-title">研究完成，等待人工选择</span>
+            <span>请在“产品候选”中对比方案，并自由选择任意方向生成标准 ProductSpec。</span>
+          </div>
+        </div>
+      )}
 
       <RunResultTabs runId={runId} result={result} />
     </div>

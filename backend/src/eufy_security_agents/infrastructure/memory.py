@@ -10,10 +10,13 @@ from eufy_security_agents.domain.models import (
     Artifact,
     ForecastRequest,
     ForecastRun,
+    ProductQuestionRecord,
+    ProductRevision,
     ProductSelectionState,
     ProductSpec,
     RunStatus,
     SelectionStatus,
+    SuggestionResolution,
 )
 
 
@@ -24,6 +27,12 @@ class InMemoryRunRepository:
         self.artifacts: dict[tuple[str, str], Artifact] = {}
         self.products: dict[str, ProductSpec] = {}
         self.selections: dict[tuple[str, str], ProductSelectionState] = {}
+        self.question_records: dict[str, list[ProductQuestionRecord]] = {}
+        self.question_keys: dict[tuple[str, str], str] = {}
+        self.revisions: dict[str, list[ProductRevision]] = {}
+        self.revision_keys: dict[tuple[str, str], str] = {}
+        self.suggestion_resolutions: dict[str, dict[str, SuggestionResolution]] = {}
+        self.run_keys: dict[str, str] = {}
 
     def create_run(self, request: ForecastRequest) -> ForecastRun:
         now = datetime.now(UTC)
@@ -38,6 +47,16 @@ class InMemoryRunRepository:
         self.runs[run.id] = run
         self.events[run.id] = []
         return run
+
+    def get_or_create_run(
+        self, request: ForecastRequest, idempotency_key: str
+    ) -> tuple[ForecastRun, bool]:
+        existing_id = self.run_keys.get(idempotency_key)
+        if existing_id is not None and existing_id in self.runs:
+            return self.runs[existing_id], False
+        run = self.create_run(request)
+        self.run_keys[idempotency_key] = run.id
+        return run, True
 
     def get_run(self, run_id: str) -> ForecastRun | None:
         return self.runs.get(run_id)
@@ -91,6 +110,72 @@ class InMemoryRunRepository:
 
     def get_product(self, product_id: str) -> ProductSpec | None:
         return self.products.get(product_id)
+
+    def save_question_record(
+        self, record: ProductQuestionRecord, *, idempotency_key: str | None
+    ) -> None:
+        self.question_records.setdefault(record.question.product_id, []).append(record)
+        if idempotency_key is not None:
+            self.question_keys[(record.question.product_id, idempotency_key)] = (
+                record.answer.question_id
+            )
+
+    def get_question_record(
+        self, product_id: str, question_id: str
+    ) -> ProductQuestionRecord | None:
+        for record in self.question_records.get(product_id, []):
+            if record.answer.question_id == question_id:
+                return record
+        return None
+
+    def update_question_record(self, record: ProductQuestionRecord) -> None:
+        records = self.question_records.setdefault(record.question.product_id, [])
+        for index, existing in enumerate(records):
+            if existing.answer.question_id == record.answer.question_id:
+                records[index] = record
+                return
+        raise KeyError(record.answer.question_id)
+
+    def list_question_records(self, product_id: str) -> list[ProductQuestionRecord]:
+        return list(self.question_records.get(product_id, []))
+
+    def find_question_record_by_key(
+        self, product_id: str, idempotency_key: str
+    ) -> ProductQuestionRecord | None:
+        question_id = self.question_keys.get((product_id, idempotency_key))
+        if question_id is None:
+            return None
+        for record in self.question_records.get(product_id, []):
+            if record.answer.question_id == question_id:
+                return record
+        return None
+
+    def save_revision(self, revision: ProductRevision, *, idempotency_key: str | None) -> None:
+        self.revisions.setdefault(revision.product_id, []).append(revision)
+        if idempotency_key is not None:
+            self.revision_keys[(revision.product_id, idempotency_key)] = revision.id
+
+    def list_revisions(self, product_id: str) -> list[ProductRevision]:
+        return list(self.revisions.get(product_id, []))
+
+    def find_revision_by_key(
+        self, product_id: str, idempotency_key: str
+    ) -> ProductRevision | None:
+        revision_id = self.revision_keys.get((product_id, idempotency_key))
+        if revision_id is None:
+            return None
+        for revision in self.revisions.get(product_id, []):
+            if revision.id == revision_id:
+                return revision
+        return None
+
+    def save_suggestion_resolution(self, resolution: SuggestionResolution) -> None:
+        self.suggestion_resolutions.setdefault(resolution.product_id, {})[
+            resolution.suggestion_id
+        ] = resolution
+
+    def list_suggestion_resolutions(self, product_id: str) -> list[SuggestionResolution]:
+        return list(self.suggestion_resolutions.get(product_id, {}).values())
 
     def get_selection(self, run_id: str, idempotency_key: str) -> ProductSelectionState | None:
         return self.selections.get((run_id, idempotency_key))

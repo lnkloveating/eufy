@@ -46,6 +46,62 @@ class NoveltyClassification(StrEnum):
     NEW_PRODUCT_CATEGORY = "new_product_category"
 
 
+class DefinitionStatus(StrEnum):
+    """Lifecycle of a ProductSpec inside the definition workbench.
+
+    ``validation_ready`` means the definition is complete enough to enter the
+    later validation phase. It never means the product has been validated.
+    """
+
+    DRAFT = "draft"
+    UNDER_REVIEW = "under_review"
+    VALIDATION_READY = "validation_ready"
+
+
+class QuestionCategory(StrEnum):
+    """Lightweight classification that drives which context an answer receives."""
+
+    TECHNOLOGY = "technology"
+    PRIVACY = "privacy"
+    COMPETITION = "competition"
+    BUSINESS = "business"
+    ECOSYSTEM = "ecosystem"
+    USER_EXPERIENCE = "user_experience"
+    GENERAL = "general"
+
+
+class EpistemicStatus(StrEnum):
+    """How well a single answer claim is supported."""
+
+    EVIDENCE_SUPPORTED = "evidence_supported"
+    REASONED_INFERENCE = "reasoned_inference"
+    DESIGN_ASSUMPTION = "design_assumption"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+
+
+class AnswerMode(StrEnum):
+    """How the analyst is handling a question.
+
+    ``explanation`` is the default: explain the current ProductSpec, never
+    propose a revision. ``issue_detected`` surfaces a structured gap but still
+    proposes nothing until the user asks. ``change_request`` is the only mode
+    that may return suggested changes directly.
+    """
+
+    EXPLANATION = "explanation"
+    ISSUE_DETECTED = "issue_detected"
+    CHANGE_REQUEST = "change_request"
+
+
+class SuggestionDisposition(StrEnum):
+    """What a user chose to do with a suggested change."""
+
+    APPLY = "apply"
+    AS_RISK = "as_risk"
+    AS_HYPOTHESIS = "as_hypothesis"
+    DISMISS = "dismiss"
+
+
 class InnovationVector(StrEnum):
     NEW_SENSING = "new_sensing"
     PROACTIVE_INTERVENTION = "proactive_intervention"
@@ -369,6 +425,9 @@ class ForecastConsensus(BaseModel):
     minority_views: list[str] = Field(default_factory=list)
     evidence_gaps: list[str] = Field(default_factory=list)
     opportunity_implications: list[str] = Field(min_length=2, max_length=8)
+    # Lenses that failed after retry and were excluded from this consensus.
+    # Backend-populated so the consensus never silently hides a missing view.
+    missing_lenses: list[str] = Field(default_factory=list)
 
 
 class Opportunity(BaseModel):
@@ -425,6 +484,23 @@ class CompetitiveGap(BaseModel):
     confidence: Annotated[float, Field(ge=0, le=1)]
 
 
+class CompetitiveLandscape(BaseModel):
+    """Competitive landscape summary without the white-space gaps.
+
+    Used when the full competitive analysis has to be produced in two smaller
+    LLM calls to stay under the provider output-token limit.
+    """
+
+    market_patterns: list[str] = Field(default_factory=list)
+    established_capabilities: list[str] = Field(default_factory=list)
+    competitor_strengths: dict[str, list[str]] = Field(default_factory=dict)
+    competitor_limitations: dict[str, list[str]] = Field(default_factory=dict)
+    underserved_needs: list[str] = Field(default_factory=list)
+    subscription_or_lock_in_gaps: list[str] = Field(default_factory=list)
+    privacy_and_interoperability_gaps: list[str] = Field(default_factory=list)
+    regional_differences: dict[str, list[str]] = Field(default_factory=dict)
+
+
 class CompetitiveAnalysis(BaseModel):
     market_patterns: list[str]
     established_capabilities: list[str]
@@ -434,7 +510,13 @@ class CompetitiveAnalysis(BaseModel):
     subscription_or_lock_in_gaps: list[str]
     privacy_and_interoperability_gaps: list[str]
     regional_differences: dict[str, list[str]]
-    gaps: list[CompetitiveGap] = Field(min_length=3, max_length=6)
+    gaps: list[CompetitiveGap] = Field(default_factory=list, max_length=8)
+    # Set when the analysis was produced from a degraded, evidence-derived
+    # fallback after the model repeatedly exceeded the output-token limit. A
+    # degraded analysis never fabricates white space; it is built only from real
+    # CompetitorRecord capabilities and documented constraints.
+    degraded: bool = False
+    degradation_reason: str | None = None
 
 
 class CompetitivePositioning(BaseModel):
@@ -537,7 +619,14 @@ class NoveltyAudit(BaseModel):
 
 
 class CandidatePairSimilarity(BaseModel):
-    """Semantic overlap between two candidates in the same portfolio."""
+    """Semantic overlap between two candidates in the same portfolio.
+
+    The model only *describes* overlap. ``preferred_candidate_id`` and
+    ``regenerate_candidate_id`` are retained for backward compatibility but the
+    backend ignores their control meaning: which candidate survives a duplicate
+    cluster is decided deterministically from novelty quality, not by the model.
+    Both default to empty so a malformed or omitted choice can never fail a run.
+    """
 
     candidate_a_id: str
     candidate_b_id: str
@@ -545,10 +634,10 @@ class CandidatePairSimilarity(BaseModel):
     shared_user_jobs: list[str] = Field(default_factory=list)
     shared_product_mechanisms: list[str] = Field(default_factory=list)
     meaningful_differences: list[str] = Field(default_factory=list)
-    duplicate: bool
-    preferred_candidate_id: str
-    regenerate_candidate_id: str
-    regeneration_brief: str
+    duplicate: bool = False
+    preferred_candidate_id: str = ""
+    regenerate_candidate_id: str = ""
+    regeneration_brief: str = ""
 
 
 class PortfolioDiversityAudit(BaseModel):
@@ -558,6 +647,10 @@ class PortfolioDiversityAudit(BaseModel):
     regeneration_rounds: int = 0
     regenerated_candidate_ids: list[str] = Field(default_factory=list)
     degraded: bool = False
+    degradation_reason: str | None = None
+    # Human-readable record of every non-fatal repair the backend applied to a
+    # malformed auditor response (reordered/duplicate/missing/unknown pairs).
+    normalization_notes: list[str] = Field(default_factory=list)
     dropped_candidate_ids: list[str] = Field(default_factory=list)
     unresolved_duplicate_pairs: list[list[str]] = Field(default_factory=list)
 
@@ -662,6 +755,10 @@ class ProductSpec(BaseModel):
     competitive_positioning: CompetitivePositioning = Field(default_factory=CompetitivePositioning)
     capability_delta: CapabilityDelta = Field(default_factory=CapabilityDelta)
     human_selection_reason: str | None = None
+    # Definition-workbench lifecycle. Defaulted so ProductSpecs persisted before
+    # the workbench existed still deserialize as a fresh draft.
+    definition_status: DefinitionStatus = DefinitionStatus.DRAFT
+    last_change_reason: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -753,6 +850,14 @@ class CompetitiveAnalysisEnvelope(BaseModel):
     analysis: CompetitiveAnalysis
 
 
+class CompetitiveLandscapeEnvelope(BaseModel):
+    landscape: CompetitiveLandscape
+
+
+class CompetitiveGapsEnvelope(BaseModel):
+    gaps: list[CompetitiveGap] = Field(default_factory=list)
+
+
 class CurrentCapabilityBaselineEnvelope(BaseModel):
     baseline: CurrentCapabilityBaseline
 
@@ -775,3 +880,225 @@ class ReviewEnvelope(BaseModel):
 
 class ProductSpecEnvelope(BaseModel):
     product: ProductSpec
+
+
+# --------------------------------------------------------------------------- #
+# Product Definition Workbench                                                 #
+# --------------------------------------------------------------------------- #
+
+
+class ProductQuestionRequest(BaseModel):
+    question: str = Field(min_length=4, max_length=1_000)
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=100)
+
+
+class ProductQuestion(BaseModel):
+    id: str
+    product_id: str
+    product_version: str
+    question: str
+    category: QuestionCategory
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class ProductAnswerClaim(BaseModel):
+    """A single answer claim carrying an explicit epistemic label.
+
+    ``evidence_ids`` and ``competitor_evidence_ids`` are validated by the backend
+    against the exact context supplied to the model; illegal references are
+    stripped and the claim is downgraded rather than trusted.
+    """
+
+    text: str
+    epistemic_status: EpistemicStatus
+    evidence_ids: list[str] = Field(default_factory=list)
+    competitor_evidence_ids: list[str] = Field(default_factory=list)
+
+
+class ProductSuggestedChange(BaseModel):
+    id: str
+    section: str
+    current_summary: str
+    proposed_change: str
+    rationale: str
+    source_question_id: str
+    # Set when the suggestion was generated from a detected design issue.
+    source_issue_id: str | None = None
+    # Populated at read time from suggestion resolutions: accepted /
+    # converted_to_risk / converted_to_hypothesis / dismissed, or None if pending.
+    resolution: str | None = None
+
+
+class ProductDesignIssue(BaseModel):
+    """A concrete gap in the current ProductSpec, surfaced without auto-editing.
+
+    Only raised when the spec is missing a necessary decision, internally
+    inconsistent, unsupported, or conflicts with the research brief — never
+    merely because a different design is possible.
+    """
+
+    id: str
+    title: str
+    description: str
+    affected_sections: list[str] = Field(default_factory=list)
+    severity: str
+    reason: str
+    blocks_readiness: bool = False
+    # Populated at read time: addressed / dismissed, or None while open.
+    resolution: str | None = None
+
+
+class ProductQuestionAnswer(BaseModel):
+    id: str
+    question_id: str
+    product_id: str
+    product_version: str
+    category: QuestionCategory
+    answer_mode: AnswerMode = AnswerMode.EXPLANATION
+    direct_answer: str
+    claims: list[ProductAnswerClaim] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    unknowns: list[str] = Field(default_factory=list)
+    affected_sections: list[str] = Field(default_factory=list)
+    design_issue: ProductDesignIssue | None = None
+    suggested_changes: list[ProductSuggestedChange] = Field(default_factory=list)
+    # Transparency about backend citation repair/degradation, so the user can
+    # see when evidence was insufficient rather than silently trusting a claim.
+    integrity_notes: list[str] = Field(default_factory=list)
+    # The exact evidence/competitor IDs the model was allowed to cite; lets the
+    # frontend resolve titles and show what context the answer was grounded in.
+    context_evidence_ids: list[str] = Field(default_factory=list)
+    context_competitor_ids: list[str] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class ProductQuestionRecord(BaseModel):
+    """A question paired with its structured answer (persisted together)."""
+
+    question: ProductQuestion
+    answer: ProductQuestionAnswer
+
+
+class ProductAnswerDraftClaim(BaseModel):
+    text: str
+    epistemic_status: EpistemicStatus
+    evidence_ids: list[str] = Field(
+        default_factory=list,
+        description="Only EV-* IDs from the supplied evidence digest.",
+    )
+    competitor_evidence_ids: list[str] = Field(
+        default_factory=list,
+        description="Only COMP-* IDs from the supplied competitor digest.",
+    )
+
+
+class ProductAnswerDraftChange(BaseModel):
+    section: str
+    current_summary: str
+    proposed_change: str
+    rationale: str
+
+
+class ProductDesignIssueDraft(BaseModel):
+    title: str
+    description: str
+    affected_sections: list[str] = Field(default_factory=list)
+    severity: str
+    reason: str
+    blocks_readiness: bool = False
+
+
+class ProductAnswerDraft(BaseModel):
+    """LLM-authored answer body before the backend assigns IDs and validates."""
+
+    answer_mode: AnswerMode = AnswerMode.EXPLANATION
+    direct_answer: str
+    claims: list[ProductAnswerDraftClaim] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    unknowns: list[str] = Field(default_factory=list)
+    affected_sections: list[str] = Field(default_factory=list)
+    design_issue: ProductDesignIssueDraft | None = None
+    suggested_changes: list[ProductAnswerDraftChange] = Field(default_factory=list)
+
+
+class ProductAnswerEnvelope(BaseModel):
+    answer: ProductAnswerDraft
+
+
+class ProductProposalEnvelope(BaseModel):
+    """Suggested changes generated on demand from a detected design issue."""
+
+    suggested_changes: list[ProductAnswerDraftChange] = Field(default_factory=list)
+
+
+class ProductRevisionDecision(BaseModel):
+    suggestion_id: str
+    disposition: SuggestionDisposition = SuggestionDisposition.APPLY
+
+    @model_validator(mode="after")
+    def reject_dismiss(self) -> ProductRevisionDecision:
+        if self.disposition == SuggestionDisposition.DISMISS:
+            raise ValueError("dismiss is not a revision; use the resolve endpoint")
+        return self
+
+
+class ProductRevisionRequest(BaseModel):
+    decisions: list[ProductRevisionDecision] = Field(min_length=1)
+    change_reason: str | None = Field(default=None, max_length=1_000)
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=100)
+
+
+class ProductRevisionChange(BaseModel):
+    suggestion_id: str
+    section: str
+    proposed_change: str
+    disposition: SuggestionDisposition
+
+
+class ProductRevision(BaseModel):
+    id: str
+    product_id: str
+    from_version: str
+    to_version: str
+    source_answer_ids: list[str] = Field(default_factory=list)
+    accepted_changes: list[ProductRevisionChange] = Field(default_factory=list)
+    change_reason: str
+    before_snapshot: ProductSpec
+    after_snapshot: ProductSpec
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class SuggestionDismissRequest(BaseModel):
+    suggestion_ids: list[str] = Field(min_length=1)
+
+
+class IssueDismissRequest(BaseModel):
+    issue_ids: list[str] = Field(min_length=1)
+
+
+class SuggestionResolution(BaseModel):
+    suggestion_id: str
+    product_id: str
+    resolution: str
+    revision_id: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class ReadinessItem(BaseModel):
+    id: str
+    label: str
+    ok: bool
+    detail: str | None = None
+
+
+class ProductDefinitionReadiness(BaseModel):
+    product_id: str
+    version: str
+    definition_status: DefinitionStatus
+    ready: bool
+    score: int = Field(ge=0, le=100)
+    completed_items: list[ReadinessItem] = Field(default_factory=list)
+    blocking_items: list[ReadinessItem] = Field(default_factory=list)
+    warnings: list[ReadinessItem] = Field(default_factory=list)
+    outstanding_suggestions: int = 0
+    next_recommended_questions: list[str] = Field(default_factory=list)
