@@ -15,7 +15,7 @@ export function ResearchStageView({ activeStageKey, failed = false }: ResearchSt
   const done = activeIndex < 0 ? 0 : Math.min(activeIndex, STAGE_ORDER.length);
 
   return (
-    <div className="panel">
+    <div className="panel pipeline-panel">
       <div className="panel-head">
         <span className="panel-title">研究流水线</span>
         <span className="chip">

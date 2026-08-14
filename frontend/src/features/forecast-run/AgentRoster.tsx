@@ -2,6 +2,7 @@ import clsx from "clsx";
 import {
   Boxes,
   Check,
+  ChevronDown,
   Cpu,
   Database,
   Gavel,
@@ -12,9 +13,10 @@ import {
   Swords,
   Scale,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { AgentEvent } from "../../types/api";
 import { getAgentLabel, getAgentRole } from "../../lib/agentLabels";
+import { getDefaultExpandedGroups, type CollapsibleGroupState } from "../../lib/collapsible";
 
 type AgentStatus = "idle" | "running" | "done";
 
@@ -128,6 +130,29 @@ export function AgentRoster({ events }: AgentRosterProps) {
   const statuses = computeStatuses(events);
   const done = Object.values(statuses).filter((s) => s === "done").length;
   const total = Object.values(statuses).length;
+  const groupStates = useMemo(
+    () =>
+      GROUPS.map((group) => {
+        const values = group.entries.map((entry) => statuses[entry.agent] ?? "idle");
+        let state: CollapsibleGroupState = "idle";
+        if (values.some((value) => value === "running")) state = "running";
+        else if (values.some((value) => value === "done")) state = "done";
+        return { key: group.label, state };
+      }),
+    [statuses],
+  );
+  const defaultExpanded = useMemo<Record<string, boolean>>(
+    () => getDefaultExpandedGroups(groupStates),
+    [groupStates],
+  );
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(defaultExpanded);
+
+  const toggleGroup = (label: string) => {
+    setExpandedGroups((current) => ({
+      ...current,
+      [label]: !(current[label] ?? defaultExpanded[label] ?? true),
+    }));
+  };
 
   return (
     <div className="panel">
@@ -140,34 +165,65 @@ export function AgentRoster({ events }: AgentRosterProps) {
         </span>
       </div>
       <div className="panel-body stack stack-2">
-        {GROUPS.map((group) => (
-          <div key={group.label}>
-            <div className="agent-group-label">{group.label}</div>
-            <div className="stack stack-2">
-              {group.entries.map((entry) => {
-                const status = statuses[entry.agent] ?? "idle";
-                return (
-                  <div
-                    key={entry.agent}
-                    className={clsx("agent-item", {
-                      "is-running": status === "running",
-                      "is-done": status === "done",
-                    })}
-                  >
-                    <span className="agent-avatar">{entry.icon}</span>
-                    <div className="agent-meta">
-                      <div className="agent-name">{getAgentLabel(entry.agent)}</div>
-                      <div className="agent-role">{getAgentRole(entry.agent)}</div>
-                    </div>
-                    <span className="agent-state">
-                      <StatePill status={status} />
-                    </span>
-                  </div>
-                );
-              })}
+        {GROUPS.map((group) => {
+          const completedCount = group.entries.filter(
+            (entry) => statuses[entry.agent] === "done",
+          ).length;
+          const runningCount = group.entries.filter(
+            (entry) => statuses[entry.agent] === "running",
+          ).length;
+          const isExpanded = expandedGroups[group.label] ?? defaultExpanded[group.label] ?? true;
+
+          return (
+            <div className="agent-group" key={group.label}>
+              <button
+                type="button"
+                className="agent-group-toggle"
+                aria-expanded={isExpanded}
+                onClick={() => toggleGroup(group.label)}
+              >
+                <span className="agent-group-heading">
+                  <span className="agent-group-label">{group.label}</span>
+                  <span className="agent-group-meta">
+                    {completedCount}/{group.entries.length}
+                    {runningCount > 0 ? ` · 运行中 ${runningCount}` : ""}
+                  </span>
+                </span>
+                <ChevronDown
+                  size={15}
+                  aria-hidden="true"
+                  className={clsx("agent-group-chevron", isExpanded && "is-expanded")}
+                />
+              </button>
+
+              {isExpanded && (
+                <div className="stack stack-2">
+                  {group.entries.map((entry) => {
+                    const status = statuses[entry.agent] ?? "idle";
+                    return (
+                      <div
+                        key={entry.agent}
+                        className={clsx("agent-item", {
+                          "is-running": status === "running",
+                          "is-done": status === "done",
+                        })}
+                      >
+                        <span className="agent-avatar">{entry.icon}</span>
+                        <div className="agent-meta">
+                          <div className="agent-name">{getAgentLabel(entry.agent)}</div>
+                          <div className="agent-role">{getAgentRole(entry.agent)}</div>
+                        </div>
+                        <span className="agent-state">
+                          <StatePill status={status} />
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
