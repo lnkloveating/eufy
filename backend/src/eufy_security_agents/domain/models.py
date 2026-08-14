@@ -112,6 +112,13 @@ class SuggestionDisposition(StrEnum):
     DISMISS = "dismiss"
 
 
+class SuggestionKind(StrEnum):
+    """Distinguishes a definition edit from an opt-in validation candidate."""
+
+    DEFINITION_CHANGE = "definition_change"
+    VALIDATION_HYPOTHESIS = "validation_hypothesis"
+
+
 class InnovationVector(StrEnum):
     NEW_SENSING = "new_sensing"
     PROACTIVE_INTERVENTION = "proactive_intervention"
@@ -967,6 +974,8 @@ class ProductSuggestedChange(BaseModel):
     proposed_change: str
     rationale: str
     source_question_id: str
+    kind: SuggestionKind = SuggestionKind.DEFINITION_CHANGE
+    validation_hypothesis: ValidationHypothesis | None = None
     # Set when the suggestion was generated from a detected design issue.
     source_issue_id: str | None = None
     # Populated at read time from suggestion resolutions: accepted /
@@ -1044,6 +1053,16 @@ class ProductAnswerDraftChange(BaseModel):
     rationale: str
 
 
+class ValidationHypothesisDraft(BaseModel):
+    """A falsifiable validation candidate proposed alongside a Copilot answer."""
+
+    assumption: str
+    metric: str
+    proposed_method: str
+    pass_condition: str
+    kill_condition: str
+
+
 class ProductDesignIssueDraft(BaseModel):
     title: str
     description: str
@@ -1064,6 +1083,7 @@ class ProductAnswerDraft(BaseModel):
     affected_sections: list[str] = Field(default_factory=list)
     design_issue: ProductDesignIssueDraft | None = None
     suggested_changes: list[ProductAnswerDraftChange] = Field(default_factory=list)
+    validation_proposal: ValidationHypothesisDraft | None = None
 
 
 class ProductAnswerEnvelope(BaseModel):

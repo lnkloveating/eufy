@@ -671,6 +671,8 @@ export interface ProductSuggestedChange {
   proposed_change: string;
   rationale: string;
   source_question_id: string;
+  kind?: "definition_change" | "validation_hypothesis";
+  validation_hypothesis?: ValidationHypothesis | null;
   source_issue_id?: string | null;
   /** null while pending; otherwise accepted / converted_to_risk / converted_to_hypothesis / dismissed. */
   resolution?: string | null;

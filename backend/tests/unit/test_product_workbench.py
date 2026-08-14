@@ -35,6 +35,9 @@ from eufy_security_agents.domain.models import (
     ProductSpecEnvelope,
     QuestionCategory,
     RunStatus,
+    SuggestionDisposition,
+    SuggestionKind,
+    ValidationHypothesisDraft,
 )
 from eufy_security_agents.domain.product_workbench import classify_question, evaluate_readiness
 from eufy_security_agents.infrastructure.competitors import LocalCompetitorStore
@@ -55,10 +58,12 @@ class WorkbenchFakeLLM(FakeStructuredLLM):
         *,
         mode: AnswerMode = AnswerMode.EXPLANATION,
         cite_illegal: bool = False,
+        include_validation: bool = True,
     ) -> None:
         super().__init__()
         self.mode = mode
         self.cite_illegal = cite_illegal
+        self.include_validation = include_validation
         self.answer_prompts: list[str] = []
 
     @staticmethod
@@ -147,6 +152,17 @@ class WorkbenchFakeLLM(FakeStructuredLLM):
                 affected_sections=["privacy", "not_a_real_section"],
                 design_issue=design_issue,
                 suggested_changes=suggestions,
+                validation_proposal=(
+                    ValidationHypothesisDraft(
+                        assumption="目标家庭在断网时仍需要核心安全能力持续工作。",
+                        metric="断网期间核心告警成功率",
+                        proposed_method="在目标家庭中模拟 24 小时断网并记录本地告警。",
+                        pass_condition="核心告警成功率不低于 95%。",
+                        kill_condition="核心告警成功率低于 80% 或发生数据丢失。",
+                    )
+                    if self.include_validation
+                    else None
+                ),
             )
             return ProductAnswerEnvelope(answer=answer), self._metadata()  # type: ignore[return-value]
 
@@ -305,10 +321,15 @@ async def test_question_reads_real_artifacts_and_labels_claims() -> None:
     )
     answer = record.answer
     assert record.question.category == QuestionCategory.TECHNOLOGY
-    # A plain understanding question defaults to explanation and proposes nothing.
+    # A plain understanding question remains an explanation, while exposing a
+    # separate opt-in validation candidate derived from the question.
     assert answer.answer_mode == AnswerMode.EXPLANATION
     assert answer.design_issue is None
-    assert answer.suggested_changes == []
+    assert len(answer.suggested_changes) == 1
+    validation = answer.suggested_changes[0]
+    assert validation.kind == SuggestionKind.VALIDATION_HYPOTHESIS
+    assert validation.validation_hypothesis is not None
+    assert validation.validation_hypothesis.metric == "断网期间核心告警成功率"
     # Grounded on real retrieved evidence from the source run.
     assert answer.context_evidence_ids
     assert all(evidence_id.startswith("EV-") for evidence_id in answer.context_evidence_ids)
@@ -374,6 +395,59 @@ async def test_asking_a_question_does_not_mutate_the_spec() -> None:
     assert stored.privacy_principles == product.privacy_principles
     # A pure explanation question must not change anything, including status.
     assert stored.definition_status == DefinitionStatus.DRAFT
+
+
+@pytest.mark.asyncio
+async def test_user_can_accept_question_as_validation_hypothesis() -> None:
+    workflow, _, product, _, _ = await _defined_product(WorkbenchFakeLLM())
+    record = await workflow.answer_product_question(
+        product.id, ProductQuestionRequest(question="断网后核心告警是否仍然可靠？")
+    )
+    proposal = next(
+        item
+        for item in record.answer.suggested_changes
+        if item.kind == SuggestionKind.VALIDATION_HYPOTHESIS
+    )
+
+    revised = await workflow.revise_product(
+        product.id,
+        ProductRevisionRequest(
+            decisions=[
+                ProductRevisionDecision(
+                    suggestion_id=proposal.id,
+                    disposition=SuggestionDisposition.AS_HYPOTHESIS,
+                )
+            ]
+        ),
+    )
+
+    assert revised.version == "1.1"
+    assert revised.definition_status == DefinitionStatus.UNDER_REVIEW
+    assert len(revised.validation_readiness) == len(product.validation_readiness) + 1
+    assert revised.validation_readiness[-1].assumption == (
+        "目标家庭在断网时仍需要核心安全能力持续工作。"
+    )
+    assert len(workflow.list_product_revisions(product.id)) == 1
+
+
+@pytest.mark.asyncio
+async def test_backend_falls_back_when_model_omits_validation_candidate() -> None:
+    workflow, _, product, _, _ = await _defined_product(
+        WorkbenchFakeLLM(include_validation=False)
+    )
+    record = await workflow.answer_product_question(
+        product.id, ProductQuestionRequest(question="这个产品适合谁？")
+    )
+    proposal = next(
+        item
+        for item in record.answer.suggested_changes
+        if item.kind == SuggestionKind.VALIDATION_HYPOTHESIS
+    )
+
+    assert proposal.validation_hypothesis is not None
+    assert "这个产品适合谁" in proposal.validation_hypothesis.assumption
+    assert proposal.validation_hypothesis.pass_condition
+    assert proposal.validation_hypothesis.kill_condition
 
 
 @pytest.mark.asyncio
@@ -550,8 +624,12 @@ async def test_issue_detected_defers_proposal_and_blocks_readiness() -> None:
     answer = record.answer
     assert answer.answer_mode == AnswerMode.ISSUE_DETECTED
     assert answer.design_issue is not None
-    # An issue surfaces a gap but proposes no change until the user asks.
-    assert answer.suggested_changes == []
+    # An issue surfaces no definition change until the user asks; the separate
+    # validation candidate is still available for an explicit opt-in.
+    assert not any(
+        item.kind == SuggestionKind.DEFINITION_CHANGE
+        for item in answer.suggested_changes
+    )
     readiness = workflow.product_readiness(product.id)
     assert readiness.ready is False
     assert any(item.id == "no_open_issues" for item in readiness.blocking_items)
@@ -570,7 +648,11 @@ async def test_generating_a_proposal_then_accepting_resolves_the_issue() -> None
 
     updated = await workflow.generate_issue_proposal(product.id, record.question.id)
     assert updated.answer.suggested_changes
-    suggestion = updated.answer.suggested_changes[0]
+    suggestion = next(
+        item
+        for item in updated.answer.suggested_changes
+        if item.kind == SuggestionKind.DEFINITION_CHANGE
+    )
     assert suggestion.source_issue_id == issue_id
 
     revised = await workflow.revise_product(

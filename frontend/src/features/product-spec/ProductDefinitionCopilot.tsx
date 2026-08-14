@@ -343,7 +343,9 @@ function QaEntry({
   onDismissIssue: (issueId: string) => void;
   issueBusy: boolean;
 }) {
-  const hasProposal = answer.suggested_changes.length > 0;
+  const hasDefinitionProposal = answer.suggested_changes.some(
+    (suggestion) => suggestion.kind !== "validation_hypothesis",
+  );
   return (
     <div className="card card-pad stack stack-4" style={{ background: "var(--surface-2)" }}>
       <div className="row row-gap-2 wrap">
@@ -441,7 +443,7 @@ function QaEntry({
       {answer.design_issue && (
         <DesignIssueCard
           issue={answer.design_issue}
-          hasProposal={hasProposal}
+          hasProposal={hasDefinitionProposal}
           busy={issueBusy}
           onScrollToSection={onScrollToSection}
           onGenerate={() => onGenerateProposal(question.id)}
@@ -453,8 +455,8 @@ function QaEntry({
         <div className="stack stack-3">
           <span className="opp-section-label">
             {answer.design_issue
-              ? "针对该缺口的修改方案（需你确认后才会应用）"
-              : "修改方案（需你确认后才会应用）"}
+              ? "需要你确认的产品定义与验证建议"
+              : "需要你确认的建议"}
           </span>
           {answer.suggested_changes.map((suggestion) => (
             <SuggestionCard
@@ -565,54 +567,86 @@ function SuggestionCard({
   onFollowUp: (text: string) => void;
 }) {
   const resolved = suggestion.resolution ? RESOLUTION_META[suggestion.resolution] : null;
+  const isValidationProposal = suggestion.kind === "validation_hypothesis";
   return (
     <div className="card" style={{ padding: "var(--space-4)" }}>
       <div className="row between wrap row-gap-2" style={{ alignItems: "flex-start" }}>
         <span className="chip chip-outline">
           <FileEdit size={12} aria-hidden="true" />
-          {sectionLabel(suggestion.section)}
+          {isValidationProposal ? "Validation 候选" : sectionLabel(suggestion.section)}
         </span>
         {resolved && <span className={`badge ${resolved.badge}`}>{resolved.label}</span>}
       </div>
+      {isValidationProposal && !resolved && (
+        <div className="alert alert-info" role="note" style={{ marginTop: "var(--space-3)" }}>
+          <Lightbulb size={16} className="alert-icon" aria-hidden="true" />
+          <div className="alert-body">
+            <span className="alert-title">是否根据本次提问增加一个 Validation？</span>
+            <span>Copilot 只生成候选；只有你确认后，它才会写入 Validation Readiness 并生成新版本。</span>
+          </div>
+        </div>
+      )}
       <div className="deflist" style={{ marginTop: "var(--space-3)" }}>
-        <Def label="当前定义" value={suggestion.current_summary} />
-        <Def label="建议修改" value={suggestion.proposed_change} />
+        <Def label={isValidationProposal ? "当前状态" : "当前定义"} value={suggestion.current_summary} />
+        <Def label={isValidationProposal ? "待验证假设" : "建议修改"} value={suggestion.proposed_change} />
+        {isValidationProposal && suggestion.validation_hypothesis && (
+          <>
+            <Def label="衡量指标" value={suggestion.validation_hypothesis.metric} />
+            <Def label="验证方法" value={suggestion.validation_hypothesis.proposed_method} />
+            <Def label="通过条件" value={suggestion.validation_hypothesis.pass_condition} />
+            <Def label="终止条件" value={suggestion.validation_hypothesis.kill_condition} />
+          </>
+        )}
         <Def label="理由" value={suggestion.rationale} />
       </div>
       {!resolved && (
         <div className="row row-gap-2 wrap" style={{ marginTop: "var(--space-4)" }}>
-          <Button
-            variant="primary"
-            className="btn-sm"
-            disabled={busy}
-            onClick={() => onAccept(suggestion, "apply")}
-            iconStart={<Check size={14} aria-hidden="true" />}
-          >
-            {DISPOSITION_META.apply}
-          </Button>
-          <Button
-            variant="secondary"
-            className="btn-sm"
-            disabled={busy}
-            onClick={() => onAccept(suggestion, "as_risk")}
-          >
-            {DISPOSITION_META.as_risk}
-          </Button>
-          <Button
-            variant="secondary"
-            className="btn-sm"
-            disabled={busy}
-            onClick={() => onAccept(suggestion, "as_hypothesis")}
-          >
-            {DISPOSITION_META.as_hypothesis}
-          </Button>
+          {isValidationProposal ? (
+            <Button
+              variant="primary"
+              className="btn-sm"
+              disabled={busy}
+              onClick={() => onAccept(suggestion, "as_hypothesis")}
+              iconStart={<Check size={14} aria-hidden="true" />}
+            >
+              加入 Validation
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="primary"
+                className="btn-sm"
+                disabled={busy}
+                onClick={() => onAccept(suggestion, "apply")}
+                iconStart={<Check size={14} aria-hidden="true" />}
+              >
+                {DISPOSITION_META.apply}
+              </Button>
+              <Button
+                variant="secondary"
+                className="btn-sm"
+                disabled={busy}
+                onClick={() => onAccept(suggestion, "as_risk")}
+              >
+                {DISPOSITION_META.as_risk}
+              </Button>
+              <Button
+                variant="secondary"
+                className="btn-sm"
+                disabled={busy}
+                onClick={() => onAccept(suggestion, "as_hypothesis")}
+              >
+                {DISPOSITION_META.as_hypothesis}
+              </Button>
+            </>
+          )}
           <Button
             variant="ghost"
             className="btn-sm"
             disabled={busy}
             onClick={() => onDismiss(suggestion)}
           >
-            {DISPOSITION_META.dismiss}
+            {isValidationProposal ? "暂不加入" : DISPOSITION_META.dismiss}
           </Button>
           <Button
             variant="ghost"
@@ -652,8 +686,16 @@ function ConfirmChangeDialog({
       description={
         target ? (
           <span>
-            将对「{sectionLabel(target.suggestion.section)}」执行：
-            <strong> {DISPOSITION_META[target.disposition]}</strong>。这会生成新的 ProductSpec 版本。
+            {target.suggestion.kind === "validation_hypothesis" ? (
+              <>
+                将把这条候选写入 <strong>Validation Readiness</strong>。这会生成新的 ProductSpec 版本。
+              </>
+            ) : (
+              <>
+                将对「{sectionLabel(target.suggestion.section)}」执行：
+                <strong> {DISPOSITION_META[target.disposition]}</strong>。这会生成新的 ProductSpec 版本。
+              </>
+            )}
           </span>
         ) : undefined
       }

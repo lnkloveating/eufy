@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     competitor_evidence_path: Path = BACKEND_ROOT / "data" / "competitors"
     llm_api_key: str = Field(default="", repr=False)
     llm_base_url: str = "https://api.deepseek.com"
-    llm_model: str = "deepseek-v4-flash"
+    llm_model: str = "deepseek-chat"
     llm_timeout_seconds: float = 120.0
     llm_max_retries: int = 2
     llm_max_output_tokens: int = 6_000

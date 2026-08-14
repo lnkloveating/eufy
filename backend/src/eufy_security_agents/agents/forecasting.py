@@ -1259,6 +1259,10 @@ PRODUCT_ANALYST_SYSTEM = (
     "specification is missing a necessary decision, internally inconsistent, unsupported, or "
     "conflicts with the research brief. Never generate a product revision unless the user "
     "explicitly requests a change or asks to turn a detected issue into a proposal."
+    " Independently from answer_mode, every answer must include one validation_proposal "
+    "derived from the user's question. It must be a falsifiable future test, with an explicit "
+    "metric, proposed method, pass condition, and kill condition. It is only an opt-in candidate: "
+    "never claim it has run, never claim it passed, and do not place it in suggested_changes."
 )
 
 

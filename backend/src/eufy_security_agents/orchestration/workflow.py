@@ -86,6 +86,7 @@ from eufy_security_agents.domain.models import (
     StageDegradation,
     StrategyAlignment,
     SuggestionDisposition,
+    SuggestionKind,
     SuggestionResolution,
     TrendSignal,
     ValidationHypothesis,
@@ -927,9 +928,9 @@ class ForecastWorkflow:
             section for section in draft.affected_sections if section in set(SPEC_SECTIONS)
         ]
 
-        # Enforce the mode contract regardless of what the model returned:
-        # explanation never proposes; issue_detected surfaces an issue but no
-        # changes; only change_request may carry suggested changes.
+        # Enforce the definition-change mode contract regardless of what the
+        # model returned. The opt-in validation candidate is a separate channel:
+        # it never mutates the ProductSpec until the user explicitly accepts it.
         mode = draft.answer_mode
         design_issue: ProductDesignIssue | None = None
         suggestions: list[ProductSuggestedChange] = []
@@ -959,6 +960,51 @@ class ForecastWorkflow:
                 )
                 for change in draft.suggested_changes
             ]
+
+        validation = draft.validation_proposal
+        hypothesis = ValidationHypothesis(
+            id=f"val-{uuid4().hex[:10]}",
+            assumption=(
+                validation.assumption
+                if validation is not None and validation.assumption.strip()
+                else f"需要验证用户问题“{request.question}”所涉及的产品假设。"
+            ),
+            metric=(
+                validation.metric
+                if validation is not None and validation.metric.strip()
+                else "针对该问题定义的关键成功指标"
+            ),
+            proposed_method=(
+                validation.proposed_method
+                if validation is not None and validation.proposed_method.strip()
+                else "在目标用户和目标地区开展受控验证，并记录定量与定性结果。"
+            ),
+            pass_condition=(
+                validation.pass_condition
+                if validation is not None and validation.pass_condition.strip()
+                else "预先定义的关键成功指标达到项目门槛。"
+            ),
+            kill_condition=(
+                validation.kill_condition
+                if validation is not None and validation.kill_condition.strip()
+                else "关键成功指标未达到最低门槛，或出现不可接受的安全、隐私或成本风险。"
+            ),
+        )
+        suggestions.append(
+            ProductSuggestedChange(
+                id=f"sc-{uuid4().hex[:10]}",
+                section="validation",
+                current_summary=f"当前版本包含 {len(product.validation_readiness)} 条验证假设。",
+                proposed_change=hypothesis.assumption,
+                rationale=(
+                    "将本次审查问题保留为可证伪的验证项，"
+                    "避免把 Copilot 回答误当成已验证结论。"
+                ),
+                source_question_id=question_id,
+                kind=SuggestionKind.VALIDATION_HYPOTHESIS,
+                validation_hypothesis=hypothesis,
+            )
+        )
         # A claimed issue with no structured payload is just an explanation.
         if mode == AnswerMode.ISSUE_DETECTED and design_issue is None:
             mode = AnswerMode.EXPLANATION
@@ -1043,8 +1089,11 @@ class ForecastWorkflow:
         answer = record.answer
         if answer.answer_mode != AnswerMode.ISSUE_DETECTED or answer.design_issue is None:
             raise ValueError("this answer has no design issue to turn into a proposal")
-        if answer.suggested_changes:
-            return record  # already generated — idempotent
+        if any(
+            suggestion.kind == SuggestionKind.DEFINITION_CHANGE
+            for suggestion in answer.suggested_changes
+        ):
+            return record  # definition proposal already generated — idempotent
 
         context_prompt, _ev, _comp = self._build_question_context(
             product, answer.category, record.question.question
@@ -1074,7 +1123,9 @@ class ForecastWorkflow:
             )
             for change in drafts
         ]
-        updated_answer = answer.model_copy(update={"suggested_changes": suggestions})
+        updated_answer = answer.model_copy(
+            update={"suggested_changes": [*answer.suggested_changes, *suggestions]}
+        )
         updated_record = record.model_copy(update={"answer": updated_answer})
         self._repository.update_question_record(updated_record)
         return updated_record
@@ -1130,6 +1181,13 @@ class ForecastWorkflow:
             if entry is None:
                 raise LookupError(f"suggestion not found: {decision.suggestion_id}")
             suggestion, answer_id = entry
+            if (
+                suggestion.kind == SuggestionKind.VALIDATION_HYPOTHESIS
+                and decision.disposition != SuggestionDisposition.AS_HYPOTHESIS
+            ):
+                raise ValueError(
+                    "validation proposals can only be accepted as validation hypotheses"
+                )
             accepted.append((suggestion, decision.disposition))
             if answer_id not in source_answer_ids:
                 source_answer_ids.append(answer_id)
@@ -1145,21 +1203,50 @@ class ForecastWorkflow:
                 "proposed_change": suggestion.proposed_change,
                 "rationale": suggestion.rationale,
                 "disposition": disposition.value,
+                "kind": suggestion.kind.value,
             }
             for suggestion, disposition in accepted
         ]
 
-        agent = ProductSpecReviserAgent(self._llm)
-        output = await agent.run(
-            product=product,
-            accepted_changes=change_dicts,
-            evidence=evidence,
-            competitor_evidence=competitor_evidence,
-            change_reason=change_reason,
+        validation_only = all(
+            suggestion.kind == SuggestionKind.VALIDATION_HYPOTHESIS
+            and disposition == SuggestionDisposition.AS_HYPOTHESIS
+            for suggestion, disposition in accepted
+        )
+        if validation_only:
+            candidate_product = product
+        else:
+            agent = ProductSpecReviserAgent(self._llm)
+            output = await agent.run(
+                product=product,
+                accepted_changes=change_dicts,
+                evidence=evidence,
+                competitor_evidence=competitor_evidence,
+                change_reason=change_reason,
+            )
+            candidate_product = output.value.product
+
+        accepted_hypotheses = [
+            suggestion.validation_hypothesis
+            for suggestion, disposition in accepted
+            if disposition == SuggestionDisposition.AS_HYPOTHESIS
+            and suggestion.validation_hypothesis is not None
+        ]
+        existing_assumptions = {
+            item.assumption.strip().casefold()
+            for item in candidate_product.validation_readiness
+        }
+        merged_hypotheses = list(candidate_product.validation_readiness)
+        for hypothesis in accepted_hypotheses:
+            if hypothesis.assumption.strip().casefold() not in existing_assumptions:
+                merged_hypotheses.append(hypothesis)
+                existing_assumptions.add(hypothesis.assumption.strip().casefold())
+        candidate_product = candidate_product.model_copy(
+            update={"validation_readiness": merged_hypotheses}
         )
         to_version = self._bump_version(product.version)
         revised = self._sanitize_revised_product(
-            output.value.product,
+            candidate_product,
             previous=product,
             evidence=evidence,
             competitor_evidence=competitor_evidence,
@@ -1281,6 +1368,7 @@ class ForecastWorkflow:
             suggestion.id
             for record in records
             for suggestion in record.answer.suggested_changes
+            if suggestion.kind == SuggestionKind.DEFINITION_CHANGE
         }
         resolved = {
             resolution.suggestion_id
