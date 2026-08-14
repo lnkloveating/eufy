@@ -21,7 +21,7 @@ import type {
   RetrievalPreview,
   SuggestionDismissRequest,
 } from "../../types/api";
-import { request } from "./client";
+import { ApiError, request } from "./client";
 
 export function getHealth(signal?: AbortSignal): Promise<HealthResponse> {
   return request<HealthResponse>("/health", { signal });
@@ -69,7 +69,14 @@ export function listForecastRuns(
   limit = 3,
   signal?: AbortSignal,
 ): Promise<ForecastRunListResponse> {
-  return request<ForecastRunListResponse>(`/forecast-runs?limit=${limit}`, { signal });
+  return request<ForecastRunListResponse>(`/forecast-runs/recent?limit=${limit}`, { signal }).catch(
+    (error: unknown) => {
+      if (error instanceof ApiError && (error.status === 404 || error.status === 405)) {
+        return request<ForecastRunListResponse>(`/forecast-runs?limit=${limit}`, { signal });
+      }
+      throw error;
+    },
+  );
 }
 
 export function getForecastResult(

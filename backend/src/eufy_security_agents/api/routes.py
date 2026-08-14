@@ -181,6 +181,16 @@ async def forecast_options() -> dict[str, object]:
     }
 
 
+@router.get("/forecast-runs/recent", response_model=ForecastRunListResponse, tags=["forecasting"])
+async def list_forecast_runs(limit: int = Query(default=3, ge=1, le=20)) -> ForecastRunListResponse:
+    items = repository.list_runs(limit=limit)
+    return ForecastRunListResponse(
+        items=items,
+        total=repository.count_runs(),
+        limit=limit,
+    )
+
+
 @router.post(
     "/forecast-runs",
     response_model=ForecastRun,
@@ -213,16 +223,6 @@ async def get_forecast_run(run_id: str) -> ForecastRun:
     if run is None:
         raise HTTPException(status_code=404, detail="forecast run not found")
     return run
-
-
-@router.get("/forecast-runs", response_model=ForecastRunListResponse, tags=["forecasting"])
-async def list_forecast_runs(limit: int = Query(default=3, ge=1, le=20)) -> ForecastRunListResponse:
-    items = repository.list_runs(limit=limit)
-    return ForecastRunListResponse(
-        items=items,
-        total=repository.count_runs(),
-        limit=limit,
-    )
 
 
 @router.get(
