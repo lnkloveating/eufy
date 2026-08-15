@@ -1,0 +1,1278 @@
+/* ============================================================
+   eufy FutureLab — Pre-validation lab (预验证 / 模拟验证)
+   ============================================================ */
+
+/* Hypothesis matrix ---------------------------------------- */
+.vlab-matrix-wrap {
+  overflow-x: auto;
+}
+
+.vlab-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.vlab-matrix th,
+.vlab-matrix td {
+  text-align: left;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.vlab-matrix thead th {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-500);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.vlab-matrix tbody tr:hover {
+  background: var(--surface-2);
+}
+
+.vlab-matrix-row {
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.vlab-matrix-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.vlab-matrix-row.is-expanded {
+  background: var(--surface-2);
+}
+
+.vlab-matrix-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 320px;
+  font-weight: 600;
+}
+
+.vlab-matrix-reason {
+  max-width: 580px;
+  margin-top: var(--space-2);
+  color: var(--ink-500);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}
+
+.vlab-source-button,
+.vlab-filter-button {
+  border: 1px solid transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+.vlab-source-button:hover,
+.vlab-filter-button:hover,
+.vlab-filter-button.is-active {
+  border-color: currentColor;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.vlab-matrix-detail-row:hover,
+.vlab-matrix-detail-row {
+  background: var(--surface-inset);
+}
+
+.vlab-matrix-detail-row > td {
+  padding: 0;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.vlab-analysis-detail {
+  padding: var(--space-5);
+  cursor: default;
+}
+
+.vlab-analysis-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.vlab-analysis-heading h3 {
+  margin: 4px 0 0;
+  font-size: var(--text-lg);
+}
+
+.vlab-reason-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.vlab-reason-panel {
+  min-height: 116px;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--ink-300);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.vlab-reason-panel.is-support {
+  border-left-color: var(--success);
+}
+
+.vlab-reason-panel.is-counter {
+  border-left-color: var(--danger);
+}
+
+.vlab-reason-panel.is-uncertain {
+  border-left-color: var(--warning, #c27a12);
+}
+
+.vlab-reason-panel.is-next {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.vlab-reason-panel p,
+.vlab-reason-panel ul {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-600);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.vlab-reason-panel ul {
+  padding-left: 18px;
+}
+
+.vlab-reason-panel li + li {
+  margin-top: 6px;
+}
+
+.vlab-evidence-section,
+.vlab-replay,
+.vlab-replay-empty {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.vlab-detail-note {
+  margin: 4px 0 0;
+  font-size: var(--text-xs);
+}
+
+.vlab-observation-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.vlab-observation {
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.vlab-observation p {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-600);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.vlab-analysis-trace {
+  position: relative;
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+}
+
+.vlab-analysis-trace::before {
+  content: "";
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 16px;
+  width: 1px;
+  background: var(--line-strong);
+}
+
+.vlab-analysis-trace li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-2) 0 var(--space-4);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.vlab-analysis-trace li.is-pending {
+  opacity: 0.25;
+}
+
+.vlab-analysis-trace li.is-active {
+  transform: translateX(3px);
+}
+
+.vlab-trace-index {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink-500);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.vlab-analysis-trace li.is-revealed .vlab-trace-index {
+  border-color: var(--success);
+  background: var(--success-soft);
+  color: var(--success-ink);
+}
+
+.vlab-analysis-trace li.is-active .vlab-trace-index {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.vlab-trace-action {
+  margin-top: 5px;
+  color: var(--ink-700);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.vlab-analysis-trace p {
+  margin: 4px 0 0;
+  color: var(--ink-500);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.vlab-trace-evidence {
+  margin-top: 5px;
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .vlab-reason-grid,
+  .vlab-observation-list {
+    grid-template-columns: 1fr;
+  }
+
+  .vlab-analysis-heading {
+    flex-direction: column;
+  }
+}
+
+/* Roles + activity ----------------------------------------- */
+.vlab-roles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.vlab-role-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.vlab-activity {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: var(--space-2);
+}
+
+/* Scenario tabs -------------------------------------------- */
+.vlab-scenario-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.vlab-scenario-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink-700);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  transition: var(--transition);
+}
+
+.vlab-scenario-tab:hover {
+  border-color: var(--accent);
+}
+
+.vlab-scenario-tab.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  font-weight: 600;
+}
+
+/* Scenario canvas ------------------------------------------ */
+.vlab-scenario {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+.vlab-scenario-notes {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 900px) {
+  .vlab-scenario {
+    grid-template-columns: 1fr;
+  }
+}
+
+.vlab-scenario-stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.vlab-svg {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: var(--surface-inset);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.vlab-zone {
+  fill: var(--surface-2);
+  stroke: var(--line-strong);
+  stroke-width: 0.4;
+  transition: var(--transition);
+}
+
+.vlab-zone.is-active {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+  stroke-width: 0.7;
+}
+
+.vlab-zone-label {
+  font-size: 3.4px;
+  fill: var(--ink-600);
+  font-weight: 600;
+}
+
+.vlab-sensor {
+  stroke: #fff;
+  stroke-width: 0.4;
+}
+
+.vlab-sensor.is-on {
+  fill: var(--success);
+}
+
+.vlab-sensor.is-off {
+  fill: var(--ink-300);
+  opacity: 0.6;
+}
+
+.vlab-sensor-label {
+  font-size: 2.6px;
+  fill: var(--ink-500);
+}
+
+.vlab-path {
+  stroke: var(--accent);
+  stroke-width: 0.7;
+  stroke-dasharray: 1.6 1.2;
+}
+
+.vlab-event {
+  fill: none;
+  stroke: var(--accent-strong, var(--accent));
+  stroke-width: 0.8;
+}
+
+.vlab-event.is-fail {
+  stroke: var(--danger);
+}
+
+.vlab-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--ink-500);
+}
+
+.vlab-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.vlab-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.vlab-dot.is-on {
+  background: var(--success);
+}
+.vlab-dot.is-off {
+  background: var(--ink-300);
+}
+.vlab-dot.is-event {
+  background: transparent;
+  border: 2px solid var(--accent);
+}
+.vlab-dot.is-fail {
+  background: transparent;
+  border: 2px solid var(--danger);
+}
+
+/* Scenario side timeline ----------------------------------- */
+.vlab-step-controls {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.vlab-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.vlab-timeline-item {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: var(--transition);
+}
+
+.vlab-timeline-item.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+}
+
+.vlab-timeline-item.is-fail.is-active {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px var(--danger-soft);
+}
+
+.vlab-timeline-btn {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: inherit;
+}
+
+.vlab-timeline-btn:hover {
+  background: var(--surface-2);
+}
+
+.vlab-decision {
+  font-size: var(--text-sm);
+  color: var(--ink-700);
+}
+
+.vlab-fail-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--danger-ink);
+  font-weight: 600;
+}
+
+/* Rich household product walkthrough ---------------------- */
+.vlab-scenario {
+  grid-template-columns: minmax(0, 1.22fr) minmax(390px, 0.98fr);
+  align-items: start;
+}
+
+.vlab-home-view {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: #eeece7;
+  box-shadow: inset 0 0 60px rgba(42, 36, 28, 0.05);
+}
+
+.vlab-home-view .vlab-svg {
+  display: block;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(145deg, #f5f3ee, #e9e6df);
+}
+
+.vlab-scene-hud {
+  position: absolute;
+  z-index: 4;
+  top: var(--space-3);
+  left: var(--space-3);
+  right: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.vlab-scene-hud > span {
+  padding: 6px 9px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(8px);
+  color: var(--ink-600);
+  font-size: var(--text-xs);
+}
+
+.vlab-live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vlab-live-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-300);
+}
+
+.vlab-live-status.is-live .vlab-live-status-dot {
+  background: var(--success);
+  box-shadow: 0 0 0 4px rgba(15, 159, 98, 0.13);
+  animation: vlab-live-pulse 1.6s ease-out infinite;
+}
+
+.vlab-home-shell {
+  fill: #e5e0d6;
+  stroke: #b8afa1;
+  stroke-width: 1.1;
+}
+
+.vlab-home-view .vlab-zone {
+  stroke: #bdb5a8;
+  stroke-width: 0.8;
+  transition: fill 420ms ease, stroke 420ms ease, filter 420ms ease;
+}
+
+.vlab-home-view .vlab-zone.room-bedroom {
+  fill: #f5eee5;
+}
+
+.vlab-home-view .vlab-zone.room-kitchen {
+  fill: #edf2ed;
+}
+
+.vlab-home-view .vlab-zone.room-living_room {
+  fill: #f3efe8;
+}
+
+.vlab-home-view .vlab-zone.room-entryway {
+  fill: #eef0f2;
+}
+
+.vlab-home-view .vlab-zone.is-active {
+  fill: #e8f4ed;
+  stroke: var(--success);
+  stroke-width: 1;
+  filter: drop-shadow(0 0 3px rgba(15, 159, 98, 0.18));
+}
+
+.vlab-floor-texture {
+  pointer-events: none;
+  opacity: 0.22;
+}
+
+.vlab-floor-grid-line {
+  fill: none;
+  stroke: #c8c2b8;
+  stroke-width: 0.22;
+}
+
+.vlab-home-view .vlab-zone-label {
+  fill: #5a534a;
+  font-size: 3px;
+  letter-spacing: 0.08em;
+}
+
+.vlab-furniture {
+  fill: #d9d1c4;
+  stroke: #aaa092;
+  stroke-width: 0.45;
+}
+
+.vlab-furniture line,
+.vlab-furniture path {
+  fill: none;
+  stroke: #aaa092;
+  stroke-width: 0.55;
+}
+
+.vlab-furniture .vlab-furniture-soft {
+  fill: #eee9e1;
+}
+
+.vlab-furniture .vlab-door-arc {
+  stroke-dasharray: 1.2 0.8;
+}
+
+.vlab-home-view .vlab-path {
+  stroke: #475569;
+  stroke-width: 0.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 2 1.6;
+  opacity: 0.7;
+  animation: vlab-path-flow 1.2s linear infinite;
+}
+
+.vlab-sensor-group {
+  transition: opacity 240ms ease;
+}
+
+.vlab-home-view .vlab-sensor {
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 0.8;
+}
+
+.vlab-home-view .vlab-sensor.is-on {
+  fill: #334155;
+}
+
+.vlab-home-view .vlab-sensor.is-off {
+  fill: #b8b8b8;
+  opacity: 0.62;
+}
+
+.vlab-sensor-group.is-triggered .vlab-sensor.is-on {
+  fill: var(--success);
+}
+
+.vlab-sensor-glyph {
+  fill: white;
+  font-size: 2.25px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.vlab-sensor-caption rect,
+.vlab-event-caption rect {
+  fill: rgba(255, 255, 255, 0.9);
+  stroke: rgba(51, 65, 85, 0.18);
+  stroke-width: 0.25;
+}
+
+.vlab-sensor-caption text,
+.vlab-event-caption text {
+  fill: #475569;
+  font-size: 1.65px;
+  font-weight: 600;
+}
+
+.vlab-sensor-wave {
+  fill: none;
+  stroke: var(--success);
+  stroke-width: 0.55;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: vlab-sensor-ping 1.8s ease-out infinite;
+}
+
+.vlab-sensor-wave.wave-two {
+  animation-delay: 0.55s;
+}
+
+.vlab-event-pulse {
+  fill: rgba(17, 24, 39, 0.08);
+  stroke: rgba(17, 24, 39, 0.34);
+  stroke-width: 0.5;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: vlab-event-breathe 1.5s ease-in-out infinite;
+}
+
+.vlab-event-marker {
+  fill: #111827;
+  stroke: white;
+  stroke-width: 0.7;
+}
+
+.vlab-event-actor.tone-danger .vlab-event-marker {
+  fill: var(--danger);
+}
+
+.vlab-event-actor.tone-success .vlab-event-marker {
+  fill: var(--success);
+}
+
+.vlab-event-glyph {
+  fill: white;
+  font-size: 3px;
+  font-weight: 700;
+}
+
+.vlab-dot.is-triggered {
+  background: var(--success);
+  box-shadow: 0 0 0 3px rgba(15, 159, 98, 0.12);
+}
+
+.vlab-scenario-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.vlab-demo-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.vlab-demo-head h3 {
+  margin: 4px 0 0;
+  font-size: var(--text-xl);
+}
+
+.vlab-live-card {
+  position: relative;
+  overflow: hidden;
+  padding: var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: linear-gradient(145deg, #ffffff, #fafafa);
+  box-shadow: var(--shadow-sm);
+}
+
+.vlab-live-card.tone-active {
+  border-color: #b9c5d2;
+}
+
+.vlab-live-card.tone-success {
+  border-color: #a7dec4;
+  background: linear-gradient(145deg, #ffffff, var(--success-soft));
+}
+
+.vlab-live-card.tone-danger {
+  border-color: #efb7bb;
+  background: linear-gradient(145deg, #ffffff, var(--danger-soft));
+}
+
+.vlab-live-card-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--surface-3);
+}
+
+.vlab-live-card-progress span {
+  display: block;
+  height: 100%;
+  background: var(--success);
+  transition: width 420ms ease;
+}
+
+.vlab-live-kicker {
+  color: var(--success-ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.vlab-live-section {
+  margin-top: var(--space-3);
+}
+
+.vlab-live-section > span,
+.vlab-active-signals > span:first-child {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ink-400);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.vlab-live-section > strong {
+  display: block;
+  font-size: var(--text-lg);
+}
+
+.vlab-live-section p {
+  margin: 5px 0 0;
+  color: var(--ink-600);
+  font-size: var(--text-sm);
+  line-height: 1.58;
+}
+
+.vlab-live-section.is-product {
+  padding: var(--space-3);
+  border-left: 3px solid var(--success);
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  background: rgba(15, 159, 98, 0.06);
+}
+
+.vlab-live-section.is-product p {
+  color: var(--ink-800);
+  font-weight: 550;
+}
+
+.vlab-active-signals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.vlab-active-signals > span:first-child {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.vlab-signal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border: 1px solid #c7e9d8;
+  border-radius: var(--radius-pill);
+  background: var(--success-soft);
+  color: var(--success-ink);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.vlab-signal-chip > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  animation: vlab-live-pulse 1.4s ease-out infinite;
+}
+
+.vlab-product-flow {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(58px, 1fr));
+  gap: 0;
+  margin: 0;
+  padding: var(--space-3) 0;
+  list-style: none;
+}
+
+.vlab-product-flow::before {
+  content: "";
+  position: absolute;
+  top: 29px;
+  left: 8%;
+  right: 8%;
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.vlab-product-flow li {
+  position: relative;
+  z-index: 1;
+}
+
+.vlab-product-flow button {
+  width: 100%;
+  padding: 0 3px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-400);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.vlab-flow-icon {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  margin: 0 auto 6px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink-400);
+  transition: var(--transition);
+}
+
+.vlab-product-flow li.is-done .vlab-flow-icon {
+  border-color: #b8dfcc;
+  background: var(--success-soft);
+  color: var(--success-ink);
+}
+
+.vlab-product-flow li.is-active button {
+  color: var(--ink-900);
+  font-weight: 700;
+}
+
+.vlab-product-flow li.is-active .vlab-flow-icon {
+  border-color: var(--success);
+  background: white;
+  color: var(--success);
+  box-shadow: 0 0 0 4px rgba(15, 159, 98, 0.11);
+  transform: scale(1.06);
+}
+
+.vlab-demo-duration {
+  margin-left: auto;
+  font-size: var(--text-xs);
+}
+
+@keyframes vlab-live-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(15, 159, 98, 0.24);
+  }
+  75%,
+  100% {
+    box-shadow: 0 0 0 7px rgba(15, 159, 98, 0);
+  }
+}
+
+@keyframes vlab-sensor-ping {
+  0% {
+    opacity: 0.8;
+    transform: scale(0.35);
+  }
+  85%,
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes vlab-event-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.86);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes vlab-path-flow {
+  to {
+    stroke-dashoffset: -7.2;
+  }
+}
+
+@media (max-width: 1100px) {
+  .vlab-scenario {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .vlab-product-flow {
+    grid-template-columns: repeat(3, 1fr);
+    row-gap: var(--space-3);
+  }
+
+  .vlab-product-flow::before {
+    display: none;
+  }
+
+  .vlab-demo-head,
+  .vlab-step-controls {
+    align-items: stretch;
+  }
+
+  .vlab-demo-head {
+    flex-direction: column;
+  }
+
+  .vlab-demo-duration {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vlab-live-status.is-live .vlab-live-status-dot,
+  .vlab-sensor-wave,
+  .vlab-event-pulse,
+  .vlab-home-view .vlab-path,
+  .vlab-signal-chip > span {
+    animation: none;
+  }
+}
+
+/* Product-specific parametric 3D digital twin ---------------- */
+.vlab-digital-twin {
+  grid-template-columns: minmax(0, 1.16fr) minmax(390px, 0.96fr);
+}
+
+.vlab-twin-stage {
+  min-width: 0;
+}
+
+.vlab-twin-canvas-wrap {
+  position: relative;
+  overflow: hidden;
+  min-height: 520px;
+  border: 1px solid var(--line-strong);
+  border-radius: calc(var(--radius) + 2px);
+  background:
+    radial-gradient(circle at 70% 22%, rgba(255, 255, 255, 0.98), transparent 32%),
+    linear-gradient(145deg, #f5f8f9, #e7eef0);
+  box-shadow: inset 0 0 80px rgba(57, 78, 88, 0.06), var(--shadow-sm);
+}
+
+.vlab-twin-canvas {
+  width: 100% !important;
+  height: 520px !important;
+  cursor: grab;
+  touch-action: none;
+}
+
+.vlab-twin-canvas:active {
+  cursor: grabbing;
+}
+
+.vlab-twin-caption {
+  position: absolute;
+  z-index: 4;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  left: var(--space-3);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  pointer-events: none;
+}
+
+.vlab-twin-caption > div {
+  display: flex;
+  min-width: 0;
+  padding: 10px 12px;
+  flex-direction: column;
+  gap: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(12px);
+}
+
+.vlab-twin-caption strong {
+  overflow: hidden;
+  color: var(--ink-900);
+  font-size: var(--text-lg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vlab-twin-caption > div > span:last-child,
+.vlab-twin-orbit-help {
+  color: var(--ink-500);
+  font-size: var(--text-xs);
+}
+
+.vlab-twin-orbit-help {
+  padding: 7px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(10px);
+}
+
+.vlab-twin-components {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding-top: var(--space-3);
+}
+
+.vlab-twin-component {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--ink-500);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: border-color 240ms ease, color 240ms ease, background 240ms ease,
+    box-shadow 240ms ease;
+}
+
+.vlab-twin-component:hover {
+  border-color: var(--accent);
+  color: var(--accent-deep);
+}
+
+/* Click-to-interact hint pinned inside the 3D stage. */
+.vlab-twin-hint {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(6px);
+  color: var(--ink-700);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+}
+
+.vlab-twin-hint:hover {
+  transform: translateX(-50%) translateY(-2px);
+  border-color: var(--accent);
+  color: var(--accent-deep);
+  box-shadow: var(--shadow-md);
+}
+
+.vlab-twin-component > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-300);
+}
+
+.vlab-twin-component.is-active {
+  border-color: #9ed8be;
+  background: var(--success-soft);
+  color: var(--success-ink);
+  box-shadow: 0 0 0 3px rgba(15, 159, 98, 0.08);
+  font-weight: 650;
+}
+
+.vlab-twin-component.is-active > span {
+  background: var(--success);
+  box-shadow: 0 0 0 4px rgba(15, 159, 98, 0.12);
+}
+
+.vlab-twin-fallback {
+  display: flex;
+  min-height: 520px;
+  padding: var(--space-6);
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-3);
+  color: var(--ink-500);
+  text-align: center;
+}
+
+.vlab-twin-fallback strong {
+  color: var(--ink-900);
+  font-size: var(--text-xl);
+}
+
+@media (max-width: 1100px) {
+  .vlab-digital-twin {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .vlab-twin-canvas-wrap,
+  .vlab-twin-fallback {
+    min-height: 390px;
+  }
+
+  .vlab-twin-canvas {
+    height: 390px !important;
+  }
+
+  .vlab-twin-orbit-help {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vlab-twin-component,
+  .vlab-twin-component.is-active > span {
+    transition: none;
+  }
+}
+
+/* Lazy-loaded 3D twin fallback ----------------------------- */
+.vlab-twin-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+  text-align: center;
+}

@@ -77,3 +77,22 @@ def test_knowledge_coverage_and_retrieval_preview_are_auditable() -> None:
     assert body["plan"]["requested_regions"] == ["China"]
     assert len(body["evidence"]) < 49
     assert "regional_market" in {item["layer"] for item in body["evidence"]}
+
+
+def test_validation_endpoints_reject_unknown_ids() -> None:
+    client = TestClient(create_app())
+    assert (
+        client.post("/api/v1/products/does-not-exist/validation-projects").status_code == 404
+    )
+    assert (
+        client.get(
+            "/api/v1/products/does-not-exist/validation-projects/latest"
+        ).status_code
+        == 404
+    )
+    assert client.get("/api/v1/validation-projects/does-not-exist").status_code == 404
+    assert client.post("/api/v1/validation-projects/does-not-exist/run").status_code == 404
+    assert client.get("/api/v1/validation-projects/does-not-exist/events").status_code == 404
+    assert (
+        client.post("/api/v1/validation-findings/does-not-exist/send-back").status_code == 404
+    )

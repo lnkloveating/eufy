@@ -5,7 +5,7 @@ from eufy_security_agents.infrastructure.competitors import LocalCompetitorStore
 from eufy_security_agents.infrastructure.evidence import LocalEvidenceStore
 from eufy_security_agents.infrastructure.llm import OpenAICompatibleLLM
 from eufy_security_agents.infrastructure.repositories import SqlAlchemyRunRepository
-from eufy_security_agents.orchestration import ForecastWorkflow
+from eufy_security_agents.orchestration import ForecastWorkflow, ValidationWorkflow
 
 settings = get_settings()
 repository = SqlAlchemyRunRepository(settings.database_url)
@@ -27,3 +27,4 @@ workflow = ForecastWorkflow(
     stage_timeout_seconds=settings.stage_timeout_seconds,
     timeout_seconds=settings.workflow_timeout_seconds,
 )
+validation_workflow = ValidationWorkflow(repository=repository, llm=llm)

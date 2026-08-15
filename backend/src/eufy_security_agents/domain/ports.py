@@ -19,6 +19,7 @@ from .models import (
     RunStatus,
     SuggestionResolution,
 )
+from .validation import ValidationEvent, ValidationProject
 
 TModel = TypeVar("TModel", bound=BaseModel)
 
@@ -113,3 +114,43 @@ class RunRepository(Protocol):
     def fail_selection(self, run_id: str, idempotency_key: str, error: str) -> None: ...
 
     def recover_interrupted_runs(self) -> int: ...
+
+
+class ValidationRepository(Protocol):
+    """Persistence for the pre-validation lab (projects, events, finding index).
+
+    Structurally implemented by the same SQLAlchemy repository as
+    :class:`RunRepository`; kept as its own protocol so the validation workflow
+    never depends on the forecasting persistence surface.
+    """
+
+    def save_validation_project(
+        self, project: ValidationProject, *, idempotency_key: str | None = None
+    ) -> None: ...
+
+    def get_validation_project(self, project_id: str) -> ValidationProject | None: ...
+
+    def get_latest_validation_project(self, product_id: str) -> ValidationProject | None: ...
+
+    def find_validation_project_by_version(
+        self, product_id: str, product_version: str
+    ) -> ValidationProject | None: ...
+
+    def add_validation_event(self, event: ValidationEvent) -> ValidationEvent: ...
+
+    def list_validation_events(
+        self, project_id: str, after_sequence: int = 0
+    ) -> list[ValidationEvent]: ...
+
+    def get_project_id_for_finding(self, finding_id: str) -> str | None: ...
+
+    def recover_interrupted_validation_projects(self) -> int: ...
+
+
+class FullRepository(RunRepository, ValidationRepository, Protocol):
+    """Both persistence surfaces, satisfied structurally by the SQLAlchemy repo.
+
+    The validation workflow needs a few forecasting-side methods (product and
+    question-record access) as well as the validation methods, so it depends on
+    this combined protocol rather than a raw intersection type.
+    """

@@ -773,3 +773,267 @@ export interface ProductDefinitionReadiness {
   outstanding_suggestions: number;
   next_recommended_questions: string[];
 }
+
+/* -------------------------------------------------------------------------- */
+/* Pre-validation lab (预验证 / 模拟验证)                                        */
+/* -------------------------------------------------------------------------- */
+
+export type ValidationProjectStatus =
+  | "draft"
+  | "planned"
+  | "running"
+  | "completed"
+  | "failed";
+
+export type ExperimentType =
+  | "technology"
+  | "privacy_security"
+  | "user_scenario"
+  | "business"
+  | "deterministic_simulation";
+
+export type ExperimentStatus = "not_run" | "running" | "completed" | "failed";
+
+export type ExperimentVerdict =
+  | "not_run"
+  | "supported_in_simulation"
+  | "inconclusive"
+  | "contradicted"
+  | "requires_real_world_test";
+
+export type ObservationSourceType =
+  | "existing_evidence"
+  | "ai_analysis"
+  | "deterministic_simulation"
+  | "human_observation"
+  | "external_test";
+
+export type FindingSeverity = "info" | "warning" | "critical";
+
+export type FindingFeedbackStatus = "not_sent" | "sent_to_definition" | "dismissed";
+
+export type ScenarioTemplate =
+  | "urban_apartment_intrusion"
+  | "elderly_night_anomaly"
+  | "pet_false_alarm"
+  | "home_network_outage";
+
+export type ValidationAnalysisActor =
+  | "hypothesis_parser"
+  | "evidence_retrieval"
+  | "deterministic_simulation"
+  | "technology"
+  | "privacy_security"
+  | "user_scenario"
+  | "business"
+  | "adversarial"
+  | "ai_analysis"
+  | "adjudicator";
+
+export interface ValidationAnalysisStep {
+  id: string;
+  sequence: number;
+  actor: ValidationAnalysisActor;
+  action: string;
+  reasoning: string;
+  evidence_ids: string[];
+  outcome: string;
+  source_type: ObservationSourceType;
+}
+
+export interface ValidationObservation {
+  id: string;
+  source_type: ObservationSourceType;
+  source_label: string;
+  content: string;
+  supports_hypothesis: boolean | null;
+  created_at: string;
+}
+
+export interface ValidationFinding {
+  id: string;
+  experiment_id: string;
+  category: string;
+  title: string;
+  detail: string;
+  severity: FindingSeverity;
+  recommended_change: string;
+  source_type: ObservationSourceType;
+  target_section: string;
+  feedback_status: FindingFeedbackStatus;
+  created_at: string;
+}
+
+export interface ScenarioZone {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface ScenarioSensor {
+  id: string;
+  label: string;
+  zone_id: string;
+  sensor_type: string;
+  available: boolean;
+  x: number;
+  y: number;
+}
+
+export interface ScenarioTimelineStep {
+  order: number;
+  time_label: string;
+  zone_id: string;
+  title: string;
+  description: string;
+  expected_decision: string;
+  privacy_note: string | null;
+  is_failure_point: boolean;
+}
+
+export interface ScenarioSimulation {
+  template: ScenarioTemplate;
+  title: string;
+  description: string;
+  floor_plan: ScenarioZone[];
+  sensors: ScenarioSensor[];
+  timeline: ScenarioTimelineStep[];
+  expected_product_decisions: string[];
+  privacy_boundaries: string[];
+  failure_conditions: string[];
+  observations: string[];
+  coverage_notes: string[];
+  verdict: ExperimentVerdict;
+  verdict_rationale: string;
+}
+
+export type DigitalTwinArchetype =
+  | "sensor_puck"
+  | "gateway"
+  | "camera"
+  | "doorbell"
+  | "wearable"
+  | "robot"
+  | "modular_system"
+  | "generic_device";
+
+export type DigitalTwinProfile =
+  | "compact"
+  | "vertical"
+  | "horizontal"
+  | "wall_mounted"
+  | "desktop"
+  | "distributed";
+
+export type DigitalTwinComponentKind =
+  | "camera"
+  | "radar"
+  | "motion"
+  | "contact"
+  | "acoustic"
+  | "environmental"
+  | "edge_ai"
+  | "secure_element"
+  | "local_storage"
+  | "privacy_switch"
+  | "display"
+  | "speaker"
+  | "microphone"
+  | "siren"
+  | "wireless"
+  | "battery"
+  | "homebase";
+
+export interface DigitalTwinDimensions {
+  width: number;
+  height: number;
+  depth: number;
+}
+
+export interface DigitalTwinComponent {
+  id: string;
+  kind: DigitalTwinComponentKind;
+  label: string;
+  emphasis: number;
+}
+
+export interface ProductDigitalTwinSpec {
+  product_id: string;
+  signature: string;
+  archetype: DigitalTwinArchetype;
+  profile: DigitalTwinProfile;
+  design_variant: number;
+  dimensions: DigitalTwinDimensions;
+  base_color: string;
+  accent_color: string;
+  components: DigitalTwinComponent[];
+  generation_basis: string[];
+}
+
+export interface ValidationExperiment {
+  id: string;
+  project_id: string;
+  hypothesis_id: string;
+  title: string;
+  assumption: string;
+  experiment_type: ExperimentType;
+  metric: string;
+  proposed_method: string;
+  pass_condition: string;
+  kill_condition: string;
+  status: ExperimentStatus;
+  verdict: ExperimentVerdict;
+  findings: ValidationFinding[];
+  observations: ValidationObservation[];
+  scenario_template: ScenarioTemplate | null;
+  summary: string;
+  verdict_reason: string;
+  supporting_points: string[];
+  counter_points: string[];
+  uncertainties: string[];
+  next_recommended_test: string;
+  analysis_trace: ValidationAnalysisStep[];
+}
+
+export interface ValidationEvent {
+  id: number | null;
+  project_id: string;
+  sequence: number;
+  event_type: string;
+  validator_name: string | null;
+  message: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface ValidationProject {
+  id: string;
+  product_id: string;
+  product_version: string;
+  product_snapshot: ProductSpec;
+  status: ValidationProjectStatus;
+  experiments: ValidationExperiment[];
+  scenario_simulations: ScenarioSimulation[];
+  digital_twin: ProductDigitalTwinSpec | null;
+  overall_verdict: ExperimentVerdict;
+  summary: string;
+  disclaimer: string;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ValidationProjectCreateRequest {
+  idempotency_key?: string;
+}
+
+export interface SendBackResponse {
+  finding: ValidationFinding;
+  product_id: string;
+  question_id: string;
+  suggestion_id: string;
+  message: string;
+}

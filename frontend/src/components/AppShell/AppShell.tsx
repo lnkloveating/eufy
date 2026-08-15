@@ -9,8 +9,9 @@ import {
   Sparkles,
 } from "lucide-react";
 
-import { useHealth, useRunProductDefinitionState } from "../../lib/queries";
+import { useHealth, useProduct, useRunProductDefinitionState } from "../../lib/queries";
 import { getProductDefinitionNavigation } from "../../lib/productDefinitionNavigation";
+import { validationLabEntry } from "../../lib/validationLab";
 import { getRecentRun } from "../../lib/recent";
 
 /** Application frame with a collapsible navigation rail. */
@@ -26,6 +27,18 @@ export function AppShell() {
   const productNavigation = recentRun
     ? getProductDefinitionNavigation(recentRun, productDefinition.data)
     : null;
+
+  // The validation lab opens only once the current run's product is
+  // validation_ready; otherwise the entry stays disabled with a hint.
+  const readyProductId =
+    productDefinition.data?.status === "ready" ? productDefinition.data.product_id : null;
+  const routeProductMatch = location.pathname.match(/^\/products\/([^/]+)/);
+  const routeProductId = routeProductMatch?.[1]
+    ? decodeURIComponent(routeProductMatch[1])
+    : null;
+  const labProductId = readyProductId ?? routeProductId ?? undefined;
+  const labProduct = useProduct(labProductId);
+  const labEntry = validationLabEntry(labProductId, labProduct.data?.definition_status);
   const [navCollapsed, setNavCollapsed] = useState(false);
 
   const backendOnline = health.isSuccess && !health.isError;
@@ -118,14 +131,26 @@ export function AppShell() {
 
           <div className="nav-section stack stack-2">
             <span className="nav-section-label">下一步</span>
-            <span
-              className="nav-link is-disabled"
-              aria-disabled="true"
-              title="即将支持技术、商业、隐私和 2D 场景模拟验证"
-            >
-              <FlaskConical size={18} aria-hidden="true" />
-              <span className="nav-link-label">验证实验室</span>
-            </span>
+            {labEntry.enabled ? (
+              <NavLink
+                to={labEntry.path}
+                title={labEntry.reason}
+                className={({ isActive }) =>
+                  clsx(
+                    "nav-link",
+                    isActive && location.pathname.endsWith("/validation") && "is-active",
+                  )
+                }
+              >
+                <FlaskConical size={18} aria-hidden="true" />
+                <span className="nav-link-label">验证实验室</span>
+              </NavLink>
+            ) : (
+              <span className="nav-link is-disabled" aria-disabled="true" title={labEntry.reason}>
+                <FlaskConical size={18} aria-hidden="true" />
+                <span className="nav-link-label">验证实验室</span>
+              </span>
+            )}
           </div>
         </div>
 

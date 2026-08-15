@@ -35,6 +35,11 @@ from eufy_security_agents.domain.models import (
     SelectionStatus,
     SuggestionResolution,
 )
+from eufy_security_agents.domain.validation import (
+    ValidationEvent,
+    ValidationProject,
+    ValidationProjectStatus,
+)
 
 
 class Base(DeclarativeBase):
@@ -151,6 +156,48 @@ class ProductSelectionRow(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ValidationProjectRow(Base):
+    __tablename__ = "validation_projects"
+    __table_args__ = (UniqueConstraint("product_id", "product_version"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    product_id: Mapped[str] = mapped_column(String(64), index=True)
+    product_version: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(20), index=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    payload_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ValidationEventRow(Base):
+    __tablename__ = "validation_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[str] = mapped_column(String(64), index=True)
+    sequence: Mapped[int] = mapped_column(Integer)
+    event_type: Mapped[str] = mapped_column(String(80))
+    validator_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    message: Mapped[str] = mapped_column(Text)
+    payload_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ValidationFindingRow(Base):
+    """Index from a finding id to its owning project, for O(1) send-back lookup.
+
+    The finding's authoritative state (including feedback_status) lives inside
+    the project payload; this table only resolves finding_id -> project_id.
+    """
+
+    __tablename__ = "validation_findings"
+
+    finding_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(64), index=True)
+    product_id: Mapped[str] = mapped_column(String(64), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 def normalize_database_url(database_url: str) -> str:
@@ -635,6 +682,146 @@ class SqlAlchemyRunRepository:
                 row.status = RunStatus.FAILED.value
                 row.stage = "interrupted"
                 row.error = "server restarted while the forecast was running; create a new run"
+                row.updated_at = now
+        return len(rows)
+
+    # ------------------------------------------------------------------ #
+    # Pre-validation lab                                                  #
+    # ------------------------------------------------------------------ #
+
+    def save_validation_project(
+        self, project: ValidationProject, *, idempotency_key: str | None = None
+    ) -> None:
+        payload = project.model_dump_json()
+        with self._sessions.begin() as session:
+            existing = session.get(ValidationProjectRow, project.id)
+            if existing is not None:
+                existing.product_id = project.product_id
+                existing.product_version = project.product_version
+                existing.status = project.status.value
+                existing.payload_json = payload
+                existing.updated_at = project.updated_at
+                if idempotency_key is not None:
+                    existing.idempotency_key = idempotency_key
+            else:
+                session.add(
+                    ValidationProjectRow(
+                        id=project.id,
+                        product_id=project.product_id,
+                        product_version=project.product_version,
+                        status=project.status.value,
+                        idempotency_key=idempotency_key,
+                        payload_json=payload,
+                        created_at=project.created_at,
+                        updated_at=project.updated_at,
+                    )
+                )
+            # Re-index the project's findings so send-back can resolve them.
+            session.query(ValidationFindingRow).filter(
+                ValidationFindingRow.project_id == project.id
+            ).delete()
+            for experiment in project.experiments:
+                for finding in experiment.findings:
+                    session.add(
+                        ValidationFindingRow(
+                            finding_id=finding.id,
+                            project_id=project.id,
+                            product_id=project.product_id,
+                            created_at=finding.created_at,
+                        )
+                    )
+
+    def get_validation_project(self, project_id: str) -> ValidationProject | None:
+        with self._sessions() as session:
+            row = session.get(ValidationProjectRow, project_id)
+            return ValidationProject.model_validate_json(row.payload_json) if row else None
+
+    def get_latest_validation_project(self, product_id: str) -> ValidationProject | None:
+        statement = (
+            select(ValidationProjectRow)
+            .where(ValidationProjectRow.product_id == product_id)
+            .order_by(ValidationProjectRow.created_at.desc(), ValidationProjectRow.id.desc())
+        )
+        with self._sessions() as session:
+            row = session.scalars(statement).first()
+        return ValidationProject.model_validate_json(row.payload_json) if row else None
+
+    def find_validation_project_by_version(
+        self, product_id: str, product_version: str
+    ) -> ValidationProject | None:
+        statement = select(ValidationProjectRow).where(
+            ValidationProjectRow.product_id == product_id,
+            ValidationProjectRow.product_version == product_version,
+        )
+        with self._sessions() as session:
+            row = session.scalars(statement).first()
+        return ValidationProject.model_validate_json(row.payload_json) if row else None
+
+    def add_validation_event(self, event: ValidationEvent) -> ValidationEvent:
+        row = ValidationEventRow(
+            project_id=event.project_id,
+            sequence=event.sequence,
+            event_type=event.event_type,
+            validator_name=event.validator_name,
+            message=event.message,
+            payload_json=json.dumps(event.payload, ensure_ascii=False),
+            created_at=event.created_at,
+        )
+        with self._sessions.begin() as session:
+            session.add(row)
+        return event.model_copy(update={"id": row.id})
+
+    def list_validation_events(
+        self, project_id: str, after_sequence: int = 0
+    ) -> list[ValidationEvent]:
+        statement = (
+            select(ValidationEventRow)
+            .where(
+                ValidationEventRow.project_id == project_id,
+                ValidationEventRow.sequence > after_sequence,
+            )
+            .order_by(ValidationEventRow.sequence)
+        )
+        with self._sessions() as session:
+            rows = session.scalars(statement).all()
+        return [
+            ValidationEvent(
+                id=row.id,
+                project_id=row.project_id,
+                sequence=row.sequence,
+                event_type=row.event_type,
+                validator_name=row.validator_name,
+                message=row.message,
+                payload=json.loads(row.payload_json),
+                created_at=row.created_at,
+            )
+            for row in rows
+        ]
+
+    def get_project_id_for_finding(self, finding_id: str) -> str | None:
+        with self._sessions() as session:
+            row = session.get(ValidationFindingRow, finding_id)
+            return row.project_id if row else None
+
+    def recover_interrupted_validation_projects(self) -> int:
+        with self._sessions.begin() as session:
+            rows = session.scalars(
+                select(ValidationProjectRow).where(
+                    ValidationProjectRow.status == ValidationProjectStatus.RUNNING.value
+                )
+            ).all()
+            now = datetime.now(UTC)
+            for row in rows:
+                project = ValidationProject.model_validate_json(row.payload_json)
+                project = project.model_copy(
+                    update={
+                        "status": ValidationProjectStatus.PLANNED,
+                        "error": "服务重启，预验证运行已中断，请重新开始预验证。",
+                        "updated_at": now,
+                    }
+                )
+                row.status = ValidationProjectStatus.PLANNED.value
+                row.payload_json = project.model_dump_json()
                 row.updated_at = now
         return len(rows)
 
