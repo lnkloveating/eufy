@@ -157,7 +157,7 @@ export function ResearchBriefCard({
             iconStart={<Pencil size={15} aria-hidden="true" />}
           >
             修改研究条件
-          </Button>
+          </Button>          <span className="cta-glow">
           <Button
             variant="primary"
             size="lg"
@@ -169,6 +169,7 @@ export function ResearchBriefCard({
           >
             {starting ? "正在启动深度研究…" : "开始深度研究"}
           </Button>
+          </span>
         </div>
       )}
     </div>

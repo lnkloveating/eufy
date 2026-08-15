@@ -62,7 +62,7 @@ export function ResearchPrompt({
             </span>
           ) : (
             <span />
-          )}
+          )}          <span className="cta-glow">
           <Button
             variant="primary"
             size="lg"
@@ -73,6 +73,7 @@ export function ResearchPrompt({
           >
             {starting ? "正在启动研究…" : "开始深度研究"}
           </Button>
+          </span>
         </div>
       </div>
 

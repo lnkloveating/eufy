@@ -50,6 +50,64 @@
   box-shadow: var(--shadow-accent);
 }
 
+.cta-glow {
+  position: relative;
+  display: inline-flex;
+  isolation: isolate;
+}
+
+.cta-glow::before {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border-radius: 999px;
+  background:
+    conic-gradient(
+      from 180deg,
+      rgba(255, 255, 255, 0) 0deg,
+      rgba(255, 255, 255, 0) 42deg,
+      rgba(122, 146, 255, 0.28) 82deg,
+      rgba(255, 255, 255, 0.82) 118deg,
+      rgba(122, 146, 255, 0.36) 156deg,
+      rgba(255, 255, 255, 0) 205deg,
+      rgba(122, 146, 255, 0.22) 284deg,
+      rgba(255, 255, 255, 0) 360deg
+    );
+  filter: blur(10px);
+  opacity: 0.78;
+  animation: cta-glow-rotate 4.2s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.cta-glow::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  border: 1px solid rgba(122, 146, 255, 0.22);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 0 18px rgba(122, 146, 255, 0.12);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.cta-glow > .btn {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes cta-glow-rotate {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cta-glow::before {
+    animation: none;
+  }
+}
+
 .btn-dark {
   --btn-bg: #171717;
   --btn-fg: #fafafa;
