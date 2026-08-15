@@ -1,4 +1,4 @@
-import {
+﻿import {
   Fragment,
   Suspense,
   lazy,
@@ -13,7 +13,9 @@ import {
   Activity,
   AlertTriangle,
   ArrowLeft,
+  ChevronLeft,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   FlaskConical,
   Lock,
@@ -297,6 +299,36 @@ function ValidationLabContent({
         </div>
       </section>
 
+      {/* D. Product-specific parametric digital twin — usage tutorial */}
+      <Section
+        title="3D 产品数字样机"
+      >
+        {project.digital_twin ? (
+          <Suspense
+            fallback={
+              <div className="vlab-twin-loading">
+                <Skeleton width="100%" height={360} radius={12} />
+                <span className="subtle">正在加载 3D 数字样机…</span>
+              </div>
+            }
+          >
+            <ProductDigitalTwin
+              spec={project.digital_twin}
+              product={project.product_snapshot}
+              productName={project.product_snapshot.name}
+            />
+          </Suspense>
+        ) : (
+          <div className="alert alert-warn" role="status">
+            <AlertTriangle size={18} className="alert-icon" aria-hidden="true" />
+            <div className="alert-body">
+              <span className="alert-title">数字样机参数正在生成</span>
+              <span>刷新项目后即可查看，不会使用通用占位模型替代当前产品。</span>
+            </div>
+          </div>
+        )}
+      </Section>
+
       <div className="alert alert-warn" role="note" style={{ marginTop: "var(--space-4)" }}>
         <ShieldQuestion size={18} className="alert-icon" aria-hidden="true" />
         <div className="alert-body">
@@ -356,44 +388,9 @@ function ValidationLabContent({
         <ActivityFeed events={events} running={isRunning} />
       </Section>
 
-      {/* D. Product-specific parametric digital twin — usage tutorial */}
-      <Section
-        title="3D 产品数字样机"
-        subtitle="根据当前 ProductSpec 的产品形态、硬件模块与隐私能力确定性生成。点击样机启动设备，了解它有哪些功能、如何使用，以及告警时的样貌。"
-      >
-        {project.digital_twin ? (
-          <Suspense
-            fallback={
-              <div className="vlab-twin-loading">
-                <Skeleton width="100%" height={360} radius={12} />
-                <span className="subtle">正在加载 3D 数字样机…</span>
-              </div>
-            }
-          >
-            <ProductDigitalTwin
-              spec={project.digital_twin}
-              product={project.product_snapshot}
-              productName={project.product_snapshot.name}
-            />
-          </Suspense>
-        ) : (
-          <div className="alert alert-warn" role="status">
-            <AlertTriangle size={18} className="alert-icon" aria-hidden="true" />
-            <div className="alert-body">
-              <span className="alert-title">数字样机参数正在生成</span>
-              <span>刷新项目后即可查看，不会使用通用占位模型替代当前产品。</span>
-            </div>
-          </div>
-        )}
-      </Section>
-
       {/* E. Verdicts */}
       <Section title="验证结论（模拟）" subtitle="每条假设的模拟裁决与理由，均非真实验证。">
-        <div className="grid-cards">
-          {project.experiments.map((experiment) => (
-            <VerdictCard key={experiment.id} experiment={experiment} />
-          ))}
-        </div>
+        <VerdictCarousel experiments={project.experiments} />
       </Section>
 
       {/* F. Feedback to product definition */}
@@ -881,24 +878,82 @@ function ActivityFeed({
   );
 }
 
-function VerdictCard({ experiment }: { experiment: ValidationExperiment }) {
-  const verdict = VERDICT_META[experiment.verdict];
+function VerdictCarousel({ experiments }: { experiments: ValidationExperiment[] }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [experiments]);
+
+  if (experiments.length === 0) {
+    return <EmptyState title="暂无验证结论" description="当前项目还没有生成任何假设验证结果。" />;
+  }
+
+  const activeExperiment = experiments[Math.min(activeIndex, experiments.length - 1)]!;
+  const verdict = VERDICT_META[activeExperiment.verdict];
+  const canNavigate = experiments.length > 1;
+
+  const goPrevious = () => {
+    if (!canNavigate) return;
+    setActiveIndex((current) => (current - 1 + experiments.length) % experiments.length);
+  };
+
+  const goNext = () => {
+    if (!canNavigate) return;
+    setActiveIndex((current) => (current + 1) % experiments.length);
+  };
+
   return (
-    <div className="card card-pad stack stack-2">
-      <div className="row between wrap row-gap-2">
-        <span className="mono subtle" style={{ fontSize: "var(--text-xs)" }}>
-          {experiment.hypothesis_id}
-        </span>
-        <span className={`badge ${verdict.badge}`}>{verdict.label}</span>
+    <article className="card card-pad stack stack-3 verdict-carousel-card">
+      <div className="row between wrap row-gap-2 verdict-carousel-head">
+        <div className="row row-gap-2 wrap verdict-carousel-title" style={{ minWidth: 0 }}>
+          <strong>验证结论</strong>
+          {canNavigate && (
+            <span className="chip chip-outline">
+              {activeIndex + 1} / {experiments.length}
+            </span>
+          )}
+        </div>
+        <div className="row row-gap-2 verdict-carousel-actions">
+          <button
+            type="button"
+            className="carousel-arrow"
+            onClick={goPrevious}
+            disabled={!canNavigate}
+            aria-label="上一个假设"
+            title="上一个假设"
+          >
+            <ChevronLeft size={16} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="carousel-arrow"
+            onClick={goNext}
+            disabled={!canNavigate}
+            aria-label="下一个假设"
+            title="下一个假设"
+          >
+            <ChevronRight size={16} aria-hidden="true" />
+          </button>
+        </div>
       </div>
-      <strong>{experiment.assumption}</strong>
-      <p className="muted" style={{ fontSize: "var(--text-sm)", margin: 0 }}>
-        {experiment.summary || verdict.description}
-      </p>
-      <div className="row row-gap-2 wrap">
-        <span className="chip chip-outline">度量：{experiment.metric}</span>
+
+      <div className="verdict-carousel-body" key={activeExperiment.id} aria-live="polite">
+        <div className="row between wrap row-gap-2">
+          <span className="mono subtle" style={{ fontSize: "var(--text-xs)" }}>
+            {activeExperiment.hypothesis_id}
+          </span>
+          <span className={`badge ${verdict.badge}`}>{verdict.label}</span>
+        </div>
+        <strong>{activeExperiment.assumption}</strong>
+        <p className="muted" style={{ fontSize: "var(--text-sm)", margin: 0 }}>
+          {activeExperiment.summary || verdict.description}
+        </p>
+        <div className="row row-gap-2 wrap">
+          <span className="chip chip-outline">度量：{activeExperiment.metric}</span>
+        </div>
       </div>
-    </div>
+    </article>
   );
 }
 

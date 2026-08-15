@@ -854,6 +854,29 @@
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: var(--space-5);
 }
+.verdict-carousel-card {
+  min-height: 0;
+}
+.verdict-carousel-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+.verdict-carousel-title {
+  grid-column: 2;
+  justify-content: center;
+  text-align: center;
+}
+.verdict-carousel-actions {
+  grid-column: 3;
+  justify-self: end;
+}
+.verdict-carousel-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  animation: deliberation-fade-in 180ms ease-out;
+}
 .deliberation-carousel-card {
   min-height: 0;
 }

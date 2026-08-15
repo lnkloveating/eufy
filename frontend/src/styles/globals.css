@@ -259,15 +259,14 @@ ul { margin: 0; padding: 0; list-style: none; }
   color: #616161;
 }
 .nav-link.is-active {
-  background: #ebebeb;
-  border-color: rgba(0, 0, 0, 0.08);
   color: var(--ink-900);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.04),
-    0 6px 18px rgba(0, 0, 0, 0.045);
+  font-weight: 600;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 .nav-link.is-active svg {
-  color: #1f1f1f;
+  color: var(--ink-900);
 }
 .nav-link.is-disabled {
   color: var(--ink-300);
