@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+﻿import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -245,7 +245,6 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
                 id="sec-core"
                 icon={<Target size={16} />}
                 title="核心定义"
-                subtitle="先把问题、价值主张和产品形态说清楚。"
               >
                 <div className="deflist">
                   <Def label="核心问题" value={spec.core_problem} />
@@ -262,7 +261,6 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
                 id="sec-implementation"
                 icon={<CircuitBoard size={16} />}
                 title="实现方式"
-                subtitle="硬件负责感知，AI 负责分类，边界尽量收紧。"
               >
                 <div className="spec-grid">
                   <div className="stack stack-2">
@@ -284,7 +282,6 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
                 id="sec-delta"
                 icon={<ShieldCheck size={16} />}
                 title="能力增量"
-                subtitle="把今天已有的替代方案和真正新增的能力并列摆出来。"
               >
                 <div className="deflist">
                   <Def label="创新探索向量" value={spec.capability_delta?.innovation_vector ?? "—"} />
@@ -315,7 +312,6 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
                 id="sec-lifecycle"
                 icon={<Network size={16} />}
                 title="生态与隐私"
-                subtitle="把用户路径、生态协同和隐私原则放在一起看。"
               >
                 <div className="spec-grid">
                   <div className="stack stack-2">
@@ -341,7 +337,6 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
                 id="sec-market"
                 icon={<MapPin size={16} />}
                 title="市场与商业"
-                subtitle="按地区、竞品和收入结构一起判断。"
               >
                 {spec.regional_fit.length > 0 && (
                   <div className="grid-cards">
@@ -415,7 +410,6 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
                 id="sec-risks"
                 icon={<AlertTriangle size={16} />}
                 title="风险与假设"
-                subtitle="只保留还没有被验证、但会影响成败的关键点。"
                 tone="danger"
               >
                 <div className="stack stack-3">
@@ -588,3 +582,4 @@ function RiskCard({ risk }: { risk: RiskItem }) {
     </div>
   );
 }
+

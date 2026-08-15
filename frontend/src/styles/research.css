@@ -288,10 +288,6 @@
 }
 
 /* ---------- Live Research: 3-column grid ---------- */
-.run-back-link {
-  font-size: var(--text-sm);
-}
-
 .run-hero {
   display: flex;
   flex-direction: column;

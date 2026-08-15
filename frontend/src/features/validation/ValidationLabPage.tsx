@@ -12,7 +12,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   AlertTriangle,
-  ArrowLeft,
   ChevronLeft,
   ChevronDown,
   ChevronRight,
@@ -130,7 +129,6 @@ export function ValidationLabPage() {
   if (!isReady) {
     return (
       <div className="page page-narrow">
-        <BackLink productId={product.data.id} />
         <EmptyState
           icon={<Lock size={26} aria-hidden="true" />}
           title="请先完成产品定义"
@@ -192,7 +190,6 @@ function ValidationLabView({
   if (createProject.isError) {
     return (
       <div className="page page-narrow">
-        <BackLink productId={productId} />
         <ErrorState
           title="无法创建预验证项目"
           error={createProject.error}
@@ -205,7 +202,6 @@ function ValidationLabView({
   if (!project) {
     return (
       <div className="page">
-        <BackLink productId={productId} />
         <div style={{ height: 16 }} />
         <div className="card card-pad">
           <SkeletonText lines={5} />
@@ -260,8 +256,6 @@ function ValidationLabContent({
 
   return (
     <div className="page">
-      <BackLink productId={productId} />
-
       {/* A. Header */}
       <section className="hero" style={{ marginTop: "var(--space-4)" }}>
         <div className="row row-gap-2 wrap spec-hero-tags">
@@ -426,20 +420,6 @@ function ValidationLabContent({
           </div>
         )}
       </Section>
-    </div>
-  );
-}
-
-function BackLink({ productId }: { productId: string }) {
-  return (
-    <div className="page-header">
-      <Link
-        to={`/products/${encodeURIComponent(productId)}`}
-        className="row row-gap-2 muted spec-back-link"
-      >
-        <ArrowLeft size={15} aria-hidden="true" />
-        返回产品定义
-      </Link>
     </div>
   );
 }
