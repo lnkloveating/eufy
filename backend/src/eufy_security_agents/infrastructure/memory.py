@@ -19,6 +19,11 @@ from eufy_security_agents.domain.models import (
     SelectionStatus,
     SuggestionResolution,
 )
+from eufy_security_agents.domain.validation import (
+    ValidationEvent,
+    ValidationProject,
+    ValidationProjectStatus,
+)
 
 
 class InMemoryRunRepository:
@@ -34,6 +39,9 @@ class InMemoryRunRepository:
         self.revision_keys: dict[tuple[str, str], str] = {}
         self.suggestion_resolutions: dict[str, dict[str, SuggestionResolution]] = {}
         self.run_keys: dict[str, str] = {}
+        self.validation_projects: dict[str, ValidationProject] = {}
+        self.validation_events: dict[str, list[ValidationEvent]] = {}
+        self.validation_finding_index: dict[str, str] = {}
 
     def create_run(self, request: ForecastRequest) -> ForecastRun:
         now = datetime.now(UTC)
@@ -246,5 +254,73 @@ class InMemoryRunRepository:
                 status=RunStatus.FAILED,
                 stage="interrupted",
                 error="server restarted while the forecast was running; create a new run",
+            )
+        return len(interrupted)
+
+    # ------------------------------------------------------------------ #
+    # Pre-validation lab                                                  #
+    # ------------------------------------------------------------------ #
+
+    def save_validation_project(
+        self, project: ValidationProject, *, idempotency_key: str | None = None
+    ) -> None:
+        del idempotency_key
+        self.validation_projects[project.id] = project
+        self.validation_events.setdefault(project.id, [])
+        for experiment in project.experiments:
+            for finding in experiment.findings:
+                self.validation_finding_index[finding.id] = project.id
+
+    def get_validation_project(self, project_id: str) -> ValidationProject | None:
+        return self.validation_projects.get(project_id)
+
+    def get_latest_validation_project(self, product_id: str) -> ValidationProject | None:
+        projects = [
+            project
+            for project in self.validation_projects.values()
+            if project.product_id == product_id
+        ]
+        if not projects:
+            return None
+        return max(projects, key=lambda project: project.created_at)
+
+    def find_validation_project_by_version(
+        self, product_id: str, product_version: str
+    ) -> ValidationProject | None:
+        for project in self.validation_projects.values():
+            if project.product_id == product_id and project.product_version == product_version:
+                return project
+        return None
+
+    def add_validation_event(self, event: ValidationEvent) -> ValidationEvent:
+        events = self.validation_events.setdefault(event.project_id, [])
+        persisted = event.model_copy(update={"id": len(events) + 1})
+        events.append(persisted)
+        return persisted
+
+    def list_validation_events(
+        self, project_id: str, after_sequence: int = 0
+    ) -> list[ValidationEvent]:
+        return [
+            event
+            for event in self.validation_events.get(project_id, [])
+            if event.sequence > after_sequence
+        ]
+
+    def get_project_id_for_finding(self, finding_id: str) -> str | None:
+        return self.validation_finding_index.get(finding_id)
+
+    def recover_interrupted_validation_projects(self) -> int:
+        interrupted = [
+            project
+            for project in self.validation_projects.values()
+            if project.status == ValidationProjectStatus.RUNNING
+        ]
+        for project in interrupted:
+            self.validation_projects[project.id] = project.model_copy(
+                update={
+                    "status": ValidationProjectStatus.PLANNED,
+                    "error": "服务重启，预验证运行已中断，请重新开始预验证。",
+                }
             )
         return len(interrupted)

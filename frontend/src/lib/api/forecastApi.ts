@@ -20,7 +20,11 @@ import type {
   ProductSpec,
   RunProductDefinitionState,
   RetrievalPreview,
+  SendBackResponse,
   SuggestionDismissRequest,
+  ValidationEvent,
+  ValidationProject,
+  ValidationProjectCreateRequest,
 } from "../../types/api";
 import { ApiError, request } from "./client";
 
@@ -209,4 +213,61 @@ export function getProductReadiness(
 
 export function confirmProduct(productId: string): Promise<ProductSpec> {
   return request<ProductSpec>(productPath(productId, "/confirm"), { method: "POST" });
+}
+
+/* ---------- Pre-validation lab ---------- */
+
+export function createValidationProject(
+  productId: string,
+  body: ValidationProjectCreateRequest = {},
+): Promise<ValidationProject> {
+  return request<ValidationProject>(productPath(productId, "/validation-projects"), {
+    method: "POST",
+    body,
+  });
+}
+
+export function getLatestValidationProject(
+  productId: string,
+  signal?: AbortSignal,
+): Promise<ValidationProject> {
+  return request<ValidationProject>(
+    productPath(productId, "/validation-projects/latest"),
+    { signal },
+  );
+}
+
+export function getValidationProject(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<ValidationProject> {
+  return request<ValidationProject>(
+    `/validation-projects/${encodeURIComponent(projectId)}`,
+    { signal },
+  );
+}
+
+export function runValidationProject(projectId: string): Promise<ValidationProject> {
+  return request<ValidationProject>(
+    `/validation-projects/${encodeURIComponent(projectId)}/run`,
+    { method: "POST" },
+  );
+}
+
+export function getValidationEvents(
+  projectId: string,
+  afterSequence = 0,
+  signal?: AbortSignal,
+): Promise<ValidationEvent[]> {
+  return request<ValidationEvent[]>(
+    `/validation-projects/${encodeURIComponent(projectId)}/events?after_sequence=${afterSequence}`,
+    { signal },
+  );
+}
+
+export function sendBackFinding(findingId: string): Promise<SendBackResponse> {
+  return request<SendBackResponse>(
+    `/validation-findings/${encodeURIComponent(findingId)}/send-back`,
+    { method: "POST" },
+  );
 }

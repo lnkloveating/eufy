@@ -7,6 +7,7 @@ import "./styles/tokens.css";
 import "./styles/globals.css";
 import "./styles/components.css";
 import "./styles/research.css";
+import "./styles/validation.css";
 
 const container = document.getElementById("root");
 if (!container) {

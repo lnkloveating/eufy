@@ -29,4 +29,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(router, prefix=settings.api_prefix)
     app.state.recovered_interrupted_runs = repository.recover_interrupted_runs()
+    app.state.recovered_interrupted_validation_projects = (
+        repository.recover_interrupted_validation_projects()
+    )
     return app

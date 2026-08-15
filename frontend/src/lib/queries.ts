@@ -25,7 +25,10 @@ import type {
   ProductSelectionRequest,
   ProductSpec,
   RunProductDefinitionState,
+  SendBackResponse,
   SuggestionDismissRequest,
+  ValidationEvent,
+  ValidationProject,
 } from "../types/api";
 import { ApiError } from "./api/client";
 import {
@@ -34,6 +37,7 @@ import {
   confirmProduct,
   createForecastRun,
   createSelection,
+  createValidationProject,
   dismissDesignIssues,
   dismissSuggestions,
   generateIssueProposal,
@@ -42,13 +46,18 @@ import {
   getForecastRun,
   getHealth,
   getKnowledgeCoverage,
+  getLatestValidationProject,
   getProduct,
   getProductQuestions,
   getProductReadiness,
   getProductRevisions,
   getRunArtifacts,
   getRunProductDefinitionState,
+  getValidationEvents,
+  getValidationProject,
   listForecastRuns,
+  runValidationProject,
+  sendBackFinding,
 } from "./api/forecastApi";
 
 export const queryKeys = {
@@ -64,6 +73,10 @@ export const queryKeys = {
   productQuestions: (productId: string) => ["product-questions", productId] as const,
   productRevisions: (productId: string) => ["product-revisions", productId] as const,
   productReadiness: (productId: string) => ["product-readiness", productId] as const,
+  latestValidationProject: (productId: string) =>
+    ["validation-project", "latest", productId] as const,
+  validationProject: (projectId: string) => ["validation-project", projectId] as const,
+  validationEvents: (projectId: string) => ["validation-events", projectId] as const,
 };
 
 /** Health poll — refreshed periodically so connection status stays live. */
@@ -344,6 +357,97 @@ export function useConfirmProduct(productId: string) {
     onSuccess: (product) => {
       queryClient.setQueryData(queryKeys.product(product.id), product);
       invalidate();
+    },
+  });
+}
+
+/* ---------- Pre-validation lab ---------- */
+
+const ACTIVE_VALIDATION_STATUSES = new Set(["running"]);
+
+/**
+ * Fetch the latest validation project for a product. A 404 means "no project
+ * yet" and is surfaced (not retried) so the page can auto-create one.
+ */
+export function useLatestValidationProject(
+  productId: string | undefined,
+): UseQueryResult<ValidationProject, ApiError> {
+  return useQuery<ValidationProject, ApiError>({
+    queryKey: queryKeys.latestValidationProject(productId ?? "unknown"),
+    queryFn: ({ signal }) => getLatestValidationProject(productId as string, signal),
+    enabled: Boolean(productId),
+    retry: (failureCount, error) => !error.isNotFound && failureCount < 2,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status && ACTIVE_VALIDATION_STATUSES.has(status) ? 1500 : false;
+    },
+  });
+}
+
+/** Poll a specific project while it is running; stop once terminal. */
+export function useValidationProject(
+  projectId: string | undefined,
+): UseQueryResult<ValidationProject, ApiError> {
+  return useQuery<ValidationProject, ApiError>({
+    queryKey: queryKeys.validationProject(projectId ?? "unknown"),
+    queryFn: ({ signal }) => getValidationProject(projectId as string, signal),
+    enabled: Boolean(projectId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status && ACTIVE_VALIDATION_STATUSES.has(status) ? 1500 : false;
+    },
+    retry: (failureCount, error) => !error.isNotFound && failureCount < 2,
+  });
+}
+
+/** Bounded polling of the validation activity stream while the run is active. */
+export function useValidationEvents(
+  projectId: string | undefined,
+  active: boolean,
+): UseQueryResult<ValidationEvent[], ApiError> {
+  return useQuery<ValidationEvent[], ApiError>({
+    queryKey: queryKeys.validationEvents(projectId ?? "unknown"),
+    queryFn: ({ signal }) => getValidationEvents(projectId as string, 0, signal),
+    enabled: Boolean(projectId),
+    refetchInterval: active ? 1500 : false,
+    retry: 1,
+  });
+}
+
+export function useCreateValidationProject(productId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<ValidationProject, ApiError, void>({
+    mutationFn: () => createValidationProject(productId),
+    onSuccess: (project) => {
+      queryClient.setQueryData(queryKeys.latestValidationProject(productId), project);
+      queryClient.setQueryData(queryKeys.validationProject(project.id), project);
+    },
+  });
+}
+
+export function useRunValidationProject(productId: string, projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<ValidationProject, ApiError, void>({
+    mutationFn: () => runValidationProject(projectId),
+    onSuccess: (project) => {
+      queryClient.setQueryData(queryKeys.validationProject(project.id), project);
+      queryClient.setQueryData(queryKeys.latestValidationProject(productId), project);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.validationEvents(project.id) });
+    },
+  });
+}
+
+export function useSendBackFinding(productId: string, projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<SendBackResponse, ApiError, string>({
+    mutationFn: (findingId) => sendBackFinding(findingId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.validationProject(projectId) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.latestValidationProject(productId),
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.productQuestions(productId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.productReadiness(productId) });
     },
   });
 }

@@ -12,6 +12,7 @@ import {
 import type { ProductSpec, ReadinessItem } from "../../types/api";
 import { useConfirmProduct, useProductReadiness } from "../../lib/queries";
 import { DEFINITION_STATUS_META, validationLabStatus } from "../../lib/productWorkbench";
+import { validationLabEntry } from "../../lib/validationLab";
 import { Button } from "../../components/ui/Button";
 import { SkeletonText } from "../../components/LoadingSkeleton/LoadingSkeleton";
 import { useToast } from "../../components/ui/Toast";
@@ -29,6 +30,7 @@ export function DefinitionReadinessPanel({ product, onAskRecommended }: Props) {
   const statusMeta = DEFINITION_STATUS_META[product.definition_status ?? "draft"];
   const isValidationReady = product.definition_status === "validation_ready";
   const lab = validationLabStatus(product.definition_status);
+  const labEntry = validationLabEntry(product.id, product.definition_status);
 
   function onConfirm() {
     confirm.mutate(undefined, {
@@ -142,17 +144,19 @@ export function DefinitionReadinessPanel({ product, onAskRecommended }: Props) {
         <span className="subtle">无法加载准备度信息。</span>
       )}
 
-      {/* Validation lab — always Coming Soon, never produces results. */}
+      {/* Validation lab — enabled only once the definition is validation_ready. */}
       <div className="hr" />
       <div className="coming-soon">
         <FlaskConical size={26} className="muted" aria-hidden="true" />
         <div className="stack stack-2 grow">
           <div className="row row-gap-3 wrap">
             <strong>{lab.title}</strong>
-            <span className="coming-soon-badge">Coming Soon</span>
+            {!isValidationReady && <span className="coming-soon-badge">需先确认定义</span>}
           </div>
           <span className="muted" style={{ fontSize: "var(--text-sm)" }}>
-            {lab.description}
+            {isValidationReady
+              ? "验证实验室对当前 ProductSpec 版本进行预验证 / 模拟，不代表真实硬件或真实用户测试。"
+              : lab.description}
           </span>
         </div>
         <div className="row row-gap-3 wrap">
@@ -161,9 +165,17 @@ export function DefinitionReadinessPanel({ product, onAskRecommended }: Props) {
               返回候选对比
             </Button>
           </Link>
-          <Button variant="primary" disabled title="验证实验室即将上线">
-            进入产品验证实验室
-          </Button>
+          {labEntry.enabled ? (
+            <Link to={labEntry.path}>
+              <Button variant="primary" iconStart={<FlaskConical size={16} aria-hidden="true" />}>
+                进入产品验证实验室
+              </Button>
+            </Link>
+          ) : (
+            <Button variant="primary" disabled title={labEntry.reason}>
+              进入产品验证实验室
+            </Button>
+          )}
         </div>
       </div>
     </section>

@@ -34,9 +34,23 @@ from eufy_security_agents.domain.models import (
     SuggestionDismissRequest,
 )
 from eufy_security_agents.domain.strategy import strategy_presets
+from eufy_security_agents.domain.validation import (
+    SendBackResponse,
+    ValidationEvent,
+    ValidationProject,
+    ValidationProjectCreateRequest,
+    ValidationProjectStatus,
+)
+from eufy_security_agents.orchestration.validation_workflow import ValidationNotReadyError
 from eufy_security_agents.orchestration.workflow import DefinitionNotReadyError
 
-from .dependencies import competitor_store, evidence_store, repository, workflow
+from .dependencies import (
+    competitor_store,
+    evidence_store,
+    repository,
+    validation_workflow,
+    workflow,
+)
 
 router = APIRouter()
 
@@ -475,3 +489,134 @@ async def confirm_product(product_id: str) -> ProductSpec:
             status_code=409,
             detail=f"产品定义尚未满足验证准备度：还有 {blocking} 项阻塞项待处理",
         ) from exc
+
+
+# --------------------------------------------------------------------------- #
+# Pre-validation lab (预验证 / 模拟验证)                                          #
+# --------------------------------------------------------------------------- #
+
+
+@router.post(
+    "/products/{product_id}/validation-projects",
+    response_model=ValidationProject,
+    status_code=status.HTTP_201_CREATED,
+    tags=["validation"],
+)
+async def create_validation_project(
+    product_id: str, request: ValidationProjectCreateRequest | None = None
+) -> ValidationProject:
+    try:
+        return validation_workflow.create_project(
+            product_id, request or ValidationProjectCreateRequest()
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="product not found") from exc
+    except ValidationNotReadyError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="产品尚未完成产品定义（validation_ready），请先在产品定义页确认。",
+        ) from exc
+
+
+@router.get(
+    "/products/{product_id}/validation-projects/latest",
+    response_model=ValidationProject,
+    tags=["validation"],
+)
+async def get_latest_validation_project(product_id: str) -> ValidationProject:
+    try:
+        return validation_workflow.get_latest_project(product_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="product not found") from exc
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=404, detail="该产品尚未创建预验证项目"
+        ) from exc
+
+
+@router.get(
+    "/validation-projects/{project_id}",
+    response_model=ValidationProject,
+    tags=["validation"],
+)
+async def get_validation_project(project_id: str) -> ValidationProject:
+    try:
+        return validation_workflow.get_project(project_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="validation project not found") from exc
+
+
+@router.post(
+    "/validation-projects/{project_id}/run",
+    response_model=ValidationProject,
+    tags=["validation"],
+)
+async def run_validation_project(
+    project_id: str, background_tasks: BackgroundTasks
+) -> ValidationProject:
+    try:
+        project, scheduled = validation_workflow.request_run(project_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="validation project not found") from exc
+    if scheduled:
+        background_tasks.add_task(validation_workflow.execute, project_id)
+    return project
+
+
+@router.get(
+    "/validation-projects/{project_id}/events",
+    response_model=list[ValidationEvent],
+    tags=["validation"],
+)
+async def get_validation_events(
+    project_id: str, after_sequence: int = Query(default=0, ge=0)
+) -> list[ValidationEvent]:
+    try:
+        return validation_workflow.list_events(project_id, after_sequence)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="validation project not found") from exc
+
+
+@router.get("/validation-projects/{project_id}/events/stream", tags=["validation"])
+async def stream_validation_events(
+    project_id: str, after_sequence: int = Query(default=0, ge=0)
+) -> StreamingResponse:
+    if repository.get_validation_project(project_id) is None:
+        raise HTTPException(status_code=404, detail="validation project not found")
+
+    async def event_source() -> AsyncIterator[str]:
+        cursor = after_sequence
+        while True:
+            events = repository.list_validation_events(project_id, cursor)
+            for event in events:
+                cursor = event.sequence
+                data = event.model_dump(mode="json")
+                serialized = json.dumps(data, ensure_ascii=False)
+                yield (f"id: {event.sequence}\nevent: {event.event_type}\ndata: {serialized}\n\n")
+            project = repository.get_validation_project(project_id)
+            terminal = project is None or project.status in {
+                ValidationProjectStatus.COMPLETED,
+                ValidationProjectStatus.FAILED,
+            }
+            if terminal and not events:
+                break
+            yield ": keep-alive\n\n"
+            await asyncio.sleep(0.5)
+
+    return StreamingResponse(
+        event_source(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.post(
+    "/validation-findings/{finding_id}/send-back",
+    response_model=SendBackResponse,
+    tags=["validation"],
+)
+async def send_back_validation_finding(finding_id: str) -> SendBackResponse:
+    try:
+        return validation_workflow.send_back_finding(finding_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="finding not found") from exc
