@@ -59,70 +59,74 @@ export function AppShell() {
         </div>
 
         <div className="nav-links-wrap stack stack-2">
-          <span className="nav-section-label">工作流</span>
+          <div className="nav-section stack stack-2">
+            <span className="nav-section-label">工作流</span>
 
-          <NavLink
-            to="/"
-            end
-            title="研究首页"
-            className={({ isActive }) => clsx("nav-link", isActive && "is-active")}
-          >
-            <Sparkles size={18} aria-hidden="true" />
-            <span className="nav-link-label">研究首页</span>
-          </NavLink>
-
-          {recentRun ? (
             <NavLink
-              to={`/runs/${recentRun}`}
+              to="/"
               end
-              title="实时研究"
-              className={({ isActive }) =>
-                clsx("nav-link", isActive && location.pathname.startsWith("/runs") && "is-active")
-              }
+              title="研究首页"
+              className={({ isActive }) => clsx("nav-link", isActive && "is-active")}
             >
-              <Activity size={18} aria-hidden="true" />
-              <span className="nav-link-label">实时研究</span>
+              <Sparkles size={18} aria-hidden="true" />
+              <span className="nav-link-label">研究首页</span>
             </NavLink>
-          ) : (
-            <span className="nav-link is-disabled" aria-disabled="true" title="实时研究">
-              <Activity size={18} aria-hidden="true" />
-              <span className="nav-link-label">实时研究</span>
-            </span>
-          )}
 
-          {productNavigation ? (
-            <NavLink
-              to={productNavigation.path}
-              title={productNavigation.title}
-              className={({ isActive }) =>
-                clsx(
-                  "nav-link",
-                  isActive &&
-                    (location.pathname.startsWith("/products") ||
-                      location.pathname.endsWith("/product-definition")) &&
-                    "is-active",
-                )
-              }
+            {recentRun ? (
+              <NavLink
+                to={`/runs/${recentRun}`}
+                end
+                title="实时研究"
+                className={({ isActive }) =>
+                  clsx("nav-link", isActive && location.pathname.startsWith("/runs") && "is-active")
+                }
+              >
+                <Activity size={18} aria-hidden="true" />
+                <span className="nav-link-label">实时研究</span>
+              </NavLink>
+            ) : (
+              <span className="nav-link is-disabled" aria-disabled="true" title="实时研究">
+                <Activity size={18} aria-hidden="true" />
+                <span className="nav-link-label">实时研究</span>
+              </span>
+            )}
+
+            {productNavigation ? (
+              <NavLink
+                to={productNavigation.path}
+                title={productNavigation.title}
+                className={({ isActive }) =>
+                  clsx(
+                    "nav-link",
+                    isActive &&
+                      (location.pathname.startsWith("/products") ||
+                        location.pathname.endsWith("/product-definition")) &&
+                      "is-active",
+                  )
+                }
+              >
+                <ScrollText size={18} aria-hidden="true" />
+                <span className="nav-link-label">{productNavigation.label}</span>
+              </NavLink>
+            ) : (
+              <span className="nav-link is-disabled" aria-disabled="true" title="产品定义">
+                <ScrollText size={18} aria-hidden="true" />
+                <span className="nav-link-label">产品定义</span>
+              </span>
+            )}
+          </div>
+
+          <div className="nav-section stack stack-2">
+            <span className="nav-section-label">下一步</span>
+            <span
+              className="nav-link is-disabled"
+              aria-disabled="true"
+              title="即将支持技术、商业、隐私和 2D 场景模拟验证"
             >
-              <ScrollText size={18} aria-hidden="true" />
-              <span className="nav-link-label">{productNavigation.label}</span>
-            </NavLink>
-          ) : (
-            <span className="nav-link is-disabled" aria-disabled="true" title="产品定义">
-              <ScrollText size={18} aria-hidden="true" />
-              <span className="nav-link-label">产品定义</span>
+              <FlaskConical size={18} aria-hidden="true" />
+              <span className="nav-link-label">验证实验室</span>
             </span>
-          )}
-
-          <span className="nav-section-label">下一步</span>
-          <span
-            className="nav-link is-disabled"
-            aria-disabled="true"
-            title="即将支持技术、商业、隐私和 2D 场景模拟验证"
-          >
-            <FlaskConical size={18} aria-hidden="true" />
-            <span className="nav-link-label">验证实验室</span>
-          </span>
+          </div>
         </div>
 
         <div className="nav-foot">
