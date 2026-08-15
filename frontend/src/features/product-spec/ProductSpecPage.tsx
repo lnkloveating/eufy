@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   AlertTriangle,
-  ArrowLeft,
   CircuitBoard,
   History,
   MapPin,
@@ -30,6 +29,7 @@ type SpecPageKey = "overview" | "design" | "market" | "workbench";
 type TocItem = {
   label: string;
   page: SpecPageKey;
+  anchor: string;
 };
 
 type TocGroup = {
@@ -55,33 +55,33 @@ const TOC_GROUPS: readonly TocGroup[] = [
     label: "概览",
     page: "overview",
     items: [
-      { label: "产品概览", page: "overview" },
-      { label: "核心定义", page: "overview" },
+      { label: "产品概览", page: "overview", anchor: "sec-overview" },
+      { label: "核心定义", page: "overview", anchor: "sec-core" },
     ],
   },
   {
     label: "设计",
     page: "design",
     items: [
-      { label: "实现方式", page: "design" },
-      { label: "能力增量", page: "design" },
-      { label: "生态与隐私", page: "design" },
+      { label: "实现方式", page: "design", anchor: "sec-implementation" },
+      { label: "能力增量", page: "design", anchor: "sec-delta" },
+      { label: "生态与隐私", page: "design", anchor: "sec-lifecycle" },
     ],
   },
   {
     label: "市场与验证",
     page: "market",
     items: [
-      { label: "市场与商业", page: "market" },
-      { label: "风险与假设", page: "market" },
+      { label: "市场与商业", page: "market", anchor: "sec-market" },
+      { label: "风险与假设", page: "market", anchor: "sec-risks" },
     ],
   },
   {
     label: "工作台",
     page: "workbench",
     items: [
-      { label: "产品定义 Copilot", page: "workbench" },
-      { label: "确认准备度", page: "workbench" },
+      { label: "产品定义 Copilot", page: "workbench", anchor: "sec-copilot" },
+      { label: "确认准备度", page: "workbench", anchor: "sec-readiness" },
     ],
   },
 ];
@@ -139,13 +139,15 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
   const [draft, setDraft] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activePage, setActivePage] = useState<SpecPageKey>("overview");
+  const [activeAnchor, setActiveAnchor] = useState<string>("sec-overview");
   const mainRef = useRef<HTMLDivElement | null>(null);
   const revisions = useProductRevisions(spec.id);
   const statusMeta = DEFINITION_STATUS_META[spec.definition_status ?? "draft"];
 
-  const scrollToSection = (anchor: string) => {
-    const page = PAGE_BY_ANCHOR[anchor] ?? "overview";
-    setActivePage(page);
+  const scrollToSection = (anchor: string, page?: SpecPageKey) => {
+    const nextPage = page ?? PAGE_BY_ANCHOR[anchor] ?? "overview";
+    setActivePage(nextPage);
+    setActiveAnchor(anchor);
     window.setTimeout(() => {
       document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 0);
@@ -154,6 +156,7 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
   const askRecommended = (question: string) => {
     setDraft(question);
     setActivePage("workbench");
+    setActiveAnchor("sec-copilot");
   };
 
   useEffect(() => {
@@ -162,15 +165,12 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
 
   return (
     <div className="page spec-page">
-      <div className="page-header">
-        <Link to="/" className="row row-gap-2 muted spec-back-link">
-          <ArrowLeft size={15} aria-hidden="true" />
-          返回研究首页
-        </Link>
-      </div>
-
       <div className="spec-workbench">
-        <SpecToc activePage={activePage} onNavigate={setActivePage} />
+        <SpecToc
+          activePage={activePage}
+          activeAnchor={activeAnchor}
+          onNavigate={(page, anchor) => scrollToSection(anchor, page)}
+        />
 
         <div ref={mainRef} className="spec-main stack stack-5">
           <div key={activePage} className="spec-page-panel">
@@ -467,10 +467,12 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
 
 function SpecToc({
   activePage,
+  activeAnchor,
   onNavigate,
 }: {
   activePage: SpecPageKey;
-  onNavigate: (page: SpecPageKey) => void;
+  activeAnchor: string;
+  onNavigate: (page: SpecPageKey, anchor: string) => void;
 }) {
   return (
     <nav className="spec-toc" aria-label="产品定义目录">
@@ -481,8 +483,13 @@ function SpecToc({
             <button
               key={item.label}
               type="button"
-              className={`spec-toc-link${activePage === item.page ? " is-active" : ""}`}
-              onClick={() => onNavigate(item.page)}
+              className={`spec-toc-link${
+                activeAnchor === item.anchor ? " is-active" : ""
+              }`}
+              aria-current={
+                activeAnchor === item.anchor ? "page" : undefined
+              }
+              onClick={() => onNavigate(item.page, item.anchor)}
             >
               {item.label}
             </button>
