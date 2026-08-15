@@ -215,7 +215,6 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
               <div className="card card-pad spec-toolbar">
                 <div className="row row-gap-2 wrap" style={{ minWidth: 0 }}>
                   <span className={`badge ${statusMeta.badge}`}>{statusMeta.label}</span>
-                  <span className="chip chip-outline">当前版本 V{spec.version}</span>
                   {spec.last_change_reason && (
                     <span className="muted" style={{ fontSize: "var(--text-sm)" }}>
                       最近修改：{spec.last_change_reason}

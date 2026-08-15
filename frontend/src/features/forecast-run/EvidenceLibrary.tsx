@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Database, Search } from "lucide-react";
+
 import type { EvidenceRecord } from "../../types/api";
 import { EvidenceCard } from "../../components/EvidenceDrawer/EvidenceDrawer";
 import { EmptyState } from "../../components/EmptyState/EmptyState";
@@ -11,6 +12,7 @@ export interface EvidenceLibraryProps {
 /** Full evidence library tab with a lightweight client-side filter. */
 export function EvidenceLibrary({ evidence }: EvidenceLibraryProps) {
   const [query, setQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -23,6 +25,10 @@ export function EvidenceLibrary({ evidence }: EvidenceLibraryProps) {
     );
   }, [evidence, query]);
 
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [query, evidence.length]);
+
   if (evidence.length === 0) {
     return (
       <EmptyState
@@ -32,6 +38,18 @@ export function EvidenceLibrary({ evidence }: EvidenceLibraryProps) {
       />
     );
   }
+
+  const activeRecord = filtered[activeIndex % filtered.length]!;
+
+  const goPrevious = () => {
+    if (filtered.length <= 1) return;
+    setActiveIndex((current) => (current - 1 + filtered.length) % filtered.length);
+  };
+
+  const goNext = () => {
+    if (filtered.length <= 1) return;
+    setActiveIndex((current) => (current + 1) % filtered.length);
+  };
 
   return (
     <div className="stack stack-4">
@@ -54,7 +72,7 @@ export function EvidenceLibrary({ evidence }: EvidenceLibraryProps) {
           <input
             className="input"
             style={{ paddingLeft: 34 }}
-            placeholder="搜索标题、标签或来源…"
+            placeholder="搜索标题、标签或来源"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             aria-label="搜索证据"
@@ -69,10 +87,17 @@ export function EvidenceLibrary({ evidence }: EvidenceLibraryProps) {
           description="尝试更换关键词。"
         />
       ) : (
-        <div className="grid-cards">
-          {filtered.map((record) => (
-            <EvidenceCard key={record.id} record={record} />
-          ))}
+        <div className="evidence-carousel-wrap">
+          <EvidenceCard
+            key={activeRecord.id}
+            record={activeRecord}
+            carousel={{
+              index: activeIndex,
+              total: filtered.length,
+              onPrevious: goPrevious,
+              onNext: goNext,
+            }}
+          />
         </div>
       )}
     </div>

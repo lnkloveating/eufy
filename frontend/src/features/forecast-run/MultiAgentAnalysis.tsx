@@ -41,14 +41,6 @@ export function MultiAgentAnalysis({ result }: { result: ForecastResult }) {
 
   return (
     <div className="stack stack-5">
-      <div className="card card-pad stack stack-2">
-        <span className="eyebrow">Multi-Agent Analysis · 多 Agent 分析记录</span>
-        <strong>查看各 Agent 的结构化判断、相互质疑、观点修正与最终共识</strong>
-        <span className="subtle" style={{ fontSize: "var(--text-sm)" }}>
-          这里展示的是后端保存的 Agent 研究产物与审核结论，不生成或伪造隐藏思维过程。
-        </span>
-      </div>
-
       <Tabs
         items={items}
         active={active}

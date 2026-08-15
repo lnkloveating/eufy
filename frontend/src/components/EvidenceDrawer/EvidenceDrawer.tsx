@@ -1,4 +1,4 @@
-import { ExternalLink, FileText, Lock, ShieldCheck } from "lucide-react";
+import { ExternalLink, FileText, ChevronLeft, ChevronRight, Lock, ShieldCheck } from "lucide-react";
 import type { EvidenceRecord } from "../../types/api";
 import { formatDate, isExternalUrl, toPercent } from "../../lib/formatters";
 import { Drawer } from "../ui/Drawer";
@@ -6,15 +6,56 @@ import { EmptyState } from "../EmptyState/EmptyState";
 
 export interface EvidenceCardProps {
   record: EvidenceRecord;
+  carousel?: {
+    index: number;
+    total: number;
+    onPrevious: () => void;
+    onNext: () => void;
+  };
 }
 
 /** A single evidence record rendered as a card. */
-export function EvidenceCard({ record }: EvidenceCardProps) {
+export function EvidenceCard({ record, carousel }: EvidenceCardProps) {
   const external = isExternalUrl(record.source_url);
   const credibility = toPercent(record.credibility);
 
   return (
     <article className="card card-pad stack stack-3">
+      {carousel && (
+        <div className="row between wrap row-gap-2 evidence-carousel-head">
+          <div className="row row-gap-2 wrap evidence-carousel-title" style={{ minWidth: 0 }}>
+            <span className="chip mono">{record.id}</span>
+            {carousel.total > 1 && (
+              <span className="chip chip-outline">
+                {carousel.index + 1} / {carousel.total}
+              </span>
+            )}
+          </div>
+          <div className="row row-gap-2 evidence-carousel-actions">
+            <button
+              type="button"
+              className="carousel-arrow"
+              onClick={carousel.onPrevious}
+              disabled={carousel.total <= 1}
+              aria-label="上一条证据"
+              title="上一条证据"
+            >
+              <ChevronLeft size={16} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="carousel-arrow"
+              onClick={carousel.onNext}
+              disabled={carousel.total <= 1}
+              aria-label="下一条证据"
+              title="下一条证据"
+            >
+              <ChevronRight size={16} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="row between" style={{ alignItems: "flex-start", gap: "var(--space-3)" }}>
         <div className="stack stack-2" style={{ minWidth: 0 }}>
           <div className="row row-gap-2 wrap">
