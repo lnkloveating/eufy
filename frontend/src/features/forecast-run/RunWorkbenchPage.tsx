@@ -17,7 +17,13 @@ import {
   Swords,
 } from "lucide-react";
 
-import type { AgentEvent, Artifact, ForecastResult, RunStatus } from "../../types/api";
+import type {
+  AgentEvent,
+  Artifact,
+  ForecastRequest,
+  ForecastResult,
+  RunStatus,
+} from "../../types/api";
 import { useRun, useRunArtifacts, useRunResult } from "../../lib/queries";
 import { formatDateTime } from "../../lib/formatters";
 import { ApiError } from "../../lib/api/client";
@@ -28,6 +34,7 @@ import { EmptyState } from "../../components/EmptyState/EmptyState";
 import { ErrorState } from "../../components/ErrorState/ErrorState";
 import { Skeleton, SkeletonText } from "../../components/LoadingSkeleton/LoadingSkeleton";
 import { Button } from "../../components/ui/Button";
+import { Dialog } from "../../components/ui/Dialog";
 import { Tabs, type TabItem } from "../../components/ui/Tabs";
 import { MultiAgentAnalysis } from "./MultiAgentAnalysis";
 import { ResearchStageView } from "./ResearchStageView";
@@ -176,6 +183,7 @@ export function RunWorkbenchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const processStageRef = useRef<HTMLDivElement | null>(null);
   const [processTimelineHeight, setProcessTimelineHeight] = useState<number | null>(null);
+  const [proposalDetailsOpen, setProposalDetailsOpen] = useState(false);
 
   useEffect(() => {
     if (runId) rememberRun(runId);
@@ -342,6 +350,14 @@ export function RunWorkbenchPage() {
 
             <div className="stack stack-2 run-hero-meta">
               <StatusBadge status={data.status} />
+              <Button
+                variant="secondary"
+                size="sm"
+                iconStart={<ScrollText size={14} aria-hidden="true" />}
+                onClick={() => setProposalDetailsOpen(true)}
+              >
+                查看提案细节
+              </Button>
               <span className="subtle row row-gap-2" style={{ fontSize: "var(--text-xs)" }}>
                 <Clock size={12} aria-hidden="true" />
                 创建于 {formatDateTime(data.created_at)}
@@ -438,6 +454,12 @@ export function RunWorkbenchPage() {
             <ResearchLedger artifacts={artifactList} events={events} active={!isFinished} />
           </div>
         )}
+
+        <ProposalDetailsDialog
+          open={proposalDetailsOpen}
+          onClose={() => setProposalDetailsOpen(false)}
+          request={data.request}
+        />
 
       </div>
     </div>
@@ -607,6 +629,134 @@ function SummaryStat({
         {label}
       </span>
       <span className="summary-stat-value">{value}</span>
+    </div>
+  );
+}
+
+function ProposalDetailsDialog({
+  open,
+  onClose,
+  request,
+}: {
+  open: boolean;
+  onClose: () => void;
+  request: ForecastRequest;
+}) {
+  const contextItems: { label: string; value: string }[] = [
+    { label: "住房类型", value: request.research_context.housing_types.join("、") || "未填写" },
+    {
+      label: "家庭成员",
+      value: request.research_context.household_members.join("、") || "未填写",
+    },
+    {
+      label: "安全场景",
+      value: request.research_context.security_scenarios.join("、") || "未填写",
+    },
+    {
+      label: "现有设备",
+      value: request.research_context.current_devices.join("、") || "未填写",
+    },
+    {
+      label: "痛点",
+      value: request.research_context.pain_points.join("、") || "未填写",
+    },
+    {
+      label: "允许传感器",
+      value: request.research_context.allowed_sensors.join("、") || "未填写",
+    },
+    {
+      label: "隐私偏好",
+      value: request.research_context.privacy_preferences.join("、") || "未填写",
+    },
+    {
+      label: "安装约束",
+      value: request.research_context.installation_constraints.join("、") || "未填写",
+    },
+    {
+      label: "连接约束",
+      value: request.research_context.connectivity_constraints.join("、") || "未填写",
+    },
+    {
+      label: "商业偏好",
+      value: request.research_context.business_preferences.join("、") || "未填写",
+    },
+    {
+      label: "期望结果",
+      value: request.research_context.desired_outcomes.join("、") || "未填写",
+    },
+    {
+      label: "验证优先级",
+      value: request.research_context.validation_priorities.join("、") || "未填写",
+    },
+    {
+      label: "创新姿态",
+      value: request.research_context.innovation_posture ?? "未填写",
+    },
+  ];
+  const weightItems = Object.entries(request.weights);
+
+  return (
+    <Dialog
+      open={open}
+      title="完整提案详情"
+      onClose={onClose}
+      size="xl"
+    >
+      <div className="stack stack-4">
+        <div className="card card-pad stack stack-3">
+          <div className="row between wrap row-gap-2" style={{ alignItems: "flex-start" }}>
+            <span className="eyebrow">Research Brief · 输入追溯</span>
+            <span className="chip chip-outline">{request.category}</span>
+          </div>
+          <strong style={{ fontSize: "var(--text-lg)", lineHeight: 1.35 }}>
+            {request.question}
+          </strong>
+          <div className="metagrid">
+            <MetaItem label="预测周期" value={`未来 ${request.forecast_horizon_years} 年`} />
+            <MetaItem label="地区" value={request.regions.join("、")} />
+            <MetaItem label="目标用户" value={request.target_users.join("、")} />
+            <MetaItem label="价格带" value={request.price_segment ?? "未限定"} />
+            <MetaItem label="候选数量" value={`${request.candidate_count} 个`} />
+            <MetaItem label="策略档位" value={request.strategy_profile} />
+          </div>
+          {request.constraints.length > 0 ? (
+            <div className="row wrap row-gap-2">
+              {request.constraints.map((constraint) => (
+                <span className="chip chip-accent" key={constraint}>
+                  {constraint}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="card card-pad stack stack-3">
+          <span className="opp-section-label">研究上下文</span>
+          <div className="metagrid">
+            {contextItems.map((item) => (
+              <MetaItem key={item.label} label={item.label} value={item.value} />
+            ))}
+          </div>
+        </div>
+
+        <div className="card card-pad stack stack-3">
+          <span className="opp-section-label">策略权重</span>
+          <div className="metagrid">
+            {weightItems.map(([key, value]) => (
+              <MetaItem key={key} label={key} value={`${Math.round(value * 100)}%`} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+function MetaItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="meta-item">
+      <span className="meta-label">{label}</span>
+      <span className="meta-value">{value}</span>
     </div>
   );
 }
