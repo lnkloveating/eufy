@@ -1059,6 +1059,53 @@
   gap: var(--space-4);
 }
 
+.spec-page-panel {
+  animation: spec-page-swap 180ms ease-out;
+  will-change: opacity, transform;
+}
+
+@keyframes spec-page-swap {
+  from {
+    opacity: 0.72;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spec-page-panel {
+    animation: none;
+  }
+}
+
+.hero.is-entering,
+.spec-section.is-entering,
+.spec-main > div.is-entering {
+  animation: spec-soft-enter 220ms ease-out;
+}
+
+@keyframes spec-soft-enter {
+  from {
+    opacity: 0.72;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero.is-entering,
+  .spec-section.is-entering,
+  .spec-main > div.is-entering {
+    animation: none;
+  }
+}
+
 .spec-section-head {
   display: flex;
   align-items: flex-start;

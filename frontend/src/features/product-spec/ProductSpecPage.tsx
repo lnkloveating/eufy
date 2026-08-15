@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -25,44 +25,63 @@ import { ProductDefinitionCopilot } from "./ProductDefinitionCopilot";
 import { DefinitionReadinessPanel } from "./DefinitionReadinessPanel";
 import { RevisionHistoryDialog } from "./RevisionHistoryDialog";
 
+type SpecPageKey = "overview" | "design" | "market" | "workbench";
+
 type TocItem = {
   label: string;
-  anchor: string;
+  page: SpecPageKey;
 };
 
 type TocGroup = {
   label: string;
+  page: SpecPageKey;
   items: readonly TocItem[];
+};
+
+const PAGE_BY_ANCHOR: Record<string, SpecPageKey> = {
+  "sec-overview": "overview",
+  "sec-core": "overview",
+  "sec-implementation": "design",
+  "sec-delta": "design",
+  "sec-lifecycle": "design",
+  "sec-market": "market",
+  "sec-risks": "market",
+  "sec-copilot": "workbench",
+  "sec-readiness": "workbench",
 };
 
 const TOC_GROUPS: readonly TocGroup[] = [
   {
     label: "概览",
+    page: "overview",
     items: [
-      { label: "产品概览", anchor: "sec-overview" },
-      { label: "核心定义", anchor: "sec-core" },
+      { label: "产品概览", page: "overview" },
+      { label: "核心定义", page: "overview" },
     ],
   },
   {
     label: "设计",
+    page: "design",
     items: [
-      { label: "实现方式", anchor: "sec-implementation" },
-      { label: "能力增量", anchor: "sec-delta" },
-      { label: "生态与隐私", anchor: "sec-lifecycle" },
+      { label: "实现方式", page: "design" },
+      { label: "能力增量", page: "design" },
+      { label: "生态与隐私", page: "design" },
     ],
   },
   {
     label: "市场与验证",
+    page: "market",
     items: [
-      { label: "市场与商业", anchor: "sec-market" },
-      { label: "风险与假设", anchor: "sec-risks" },
+      { label: "市场与商业", page: "market" },
+      { label: "风险与假设", page: "market" },
     ],
   },
   {
     label: "工作台",
+    page: "workbench",
     items: [
-      { label: "产品定义 Copilot", anchor: "sec-copilot" },
-      { label: "确认准备度", anchor: "sec-readiness" },
+      { label: "产品定义 Copilot", page: "workbench" },
+      { label: "确认准备度", page: "workbench" },
     ],
   },
 ];
@@ -119,20 +138,30 @@ export function ProductSpecPage() {
 function ProductSpecView({ spec }: { spec: ProductSpec }) {
   const [draft, setDraft] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [activePage, setActivePage] = useState<SpecPageKey>("overview");
+  const mainRef = useRef<HTMLDivElement | null>(null);
   const revisions = useProductRevisions(spec.id);
   const statusMeta = DEFINITION_STATUS_META[spec.definition_status ?? "draft"];
 
   const scrollToSection = (anchor: string) => {
-    document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const page = PAGE_BY_ANCHOR[anchor] ?? "overview";
+    setActivePage(page);
+    window.setTimeout(() => {
+      document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
   };
 
   const askRecommended = (question: string) => {
     setDraft(question);
-    scrollToSection("sec-copilot");
+    setActivePage("workbench");
   };
 
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [activePage]);
+
   return (
-    <div className="page">
+    <div className="page spec-page">
       <div className="page-header">
         <Link to="/" className="row row-gap-2 muted spec-back-link">
           <ArrowLeft size={15} aria-hidden="true" />
@@ -141,277 +170,289 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
       </div>
 
       <div className="spec-workbench">
-        <SpecToc onNavigate={scrollToSection} />
+        <SpecToc activePage={activePage} onNavigate={setActivePage} />
 
-        <div className="spec-main stack stack-5">
-          <section className="hero" id="sec-overview">
-            <div className="row row-gap-2 wrap spec-hero-tags">
-              <span className="chip chip-accent">{spec.category}</span>
-              <span
-                className="chip"
-                style={{ background: "rgba(255,255,255,0.1)", color: "#cdd9e8" }}
-              >
-                版本 {spec.version}
-              </span>
-              <span
-                className="chip mono"
-                style={{ background: "rgba(255,255,255,0.08)", color: "#9fb2cc" }}
-              >
-                {spec.id}
-              </span>
-            </div>
-            <h1>{spec.name}</h1>
-            <p className="hero-sub" style={{ maxWidth: "72ch" }}>
-              {spec.one_sentence_definition}
-            </p>
-            <div className="hero-health">
-              <div className="hero-stat">
-                <span className="hero-stat-label">目标用户</span>
-                <span className="hero-stat-value" style={{ fontSize: "var(--text-base)" }}>
-                  {spec.target_users.join("、")}
-                </span>
-              </div>
-              <div className="hero-stat">
-                <span className="hero-stat-label">目标地区</span>
-                <span className="hero-stat-value" style={{ fontSize: "var(--text-base)" }}>
-                  {spec.target_regions.join("、")}
-                </span>
-              </div>
-              <div className="hero-stat">
-                <span className="hero-stat-label">生成时间</span>
-                <span className="hero-stat-value" style={{ fontSize: "var(--text-base)" }}>
-                  {formatDateTime(spec.created_at)}
-                </span>
-              </div>
-            </div>
-          </section>
+        <div ref={mainRef} className="spec-main stack stack-5">
+          <div key={activePage} className="spec-page-panel">
+            {activePage === "overview" && (
+              <>
+              <section className="hero" id="sec-overview">
+                <div className="row row-gap-2 wrap spec-hero-tags">
+                  <span className="chip chip-accent">{spec.category}</span>
+                  <span className="chip" style={{ background: "rgba(255,255,255,0.1)", color: "#cdd9e8" }}>
+                    版本 {spec.version}
+                  </span>
+                  <span className="chip mono" style={{ background: "rgba(255,255,255,0.08)", color: "#9fb2cc" }}>
+                    {spec.id}
+                  </span>
+                </div>
+                <h1>{spec.name}</h1>
+                <p className="hero-sub" style={{ maxWidth: "72ch" }}>
+                  {spec.one_sentence_definition}
+                </p>
+                <div className="hero-health">
+                  <div className="hero-stat">
+                    <span className="hero-stat-label">目标用户</span>
+                    <span className="hero-stat-value" style={{ fontSize: "var(--text-base)" }}>
+                      {spec.target_users.join("、")}
+                    </span>
+                  </div>
+                  <div className="hero-stat">
+                    <span className="hero-stat-label">目标地区</span>
+                    <span className="hero-stat-value" style={{ fontSize: "var(--text-base)" }}>
+                      {spec.target_regions.join("、")}
+                    </span>
+                  </div>
+                  <div className="hero-stat">
+                    <span className="hero-stat-label">生成时间</span>
+                    <span className="hero-stat-value" style={{ fontSize: "var(--text-base)" }}>
+                      {formatDateTime(spec.created_at)}
+                    </span>
+                  </div>
+                </div>
+              </section>
 
-          <div className="card card-pad spec-toolbar">
-            <div className="row row-gap-2 wrap" style={{ minWidth: 0 }}>
-              <span className={`badge ${statusMeta.badge}`}>{statusMeta.label}</span>
-              <span className="chip chip-outline">当前版本 V{spec.version}</span>
-              {spec.last_change_reason && (
-                <span className="muted" style={{ fontSize: "var(--text-sm)" }}>
-                  最近修改：{spec.last_change_reason}
-                </span>
+              <div className="card card-pad spec-toolbar">
+                <div className="row row-gap-2 wrap" style={{ minWidth: 0 }}>
+                  <span className={`badge ${statusMeta.badge}`}>{statusMeta.label}</span>
+                  <span className="chip chip-outline">当前版本 V{spec.version}</span>
+                  {spec.last_change_reason && (
+                    <span className="muted" style={{ fontSize: "var(--text-sm)" }}>
+                      最近修改：{spec.last_change_reason}
+                    </span>
+                  )}
+                </div>
+                <Button
+                  variant="secondary"
+                  className="btn-sm"
+                  onClick={() => setHistoryOpen(true)}
+                  iconStart={<History size={14} aria-hidden="true" />}
+                >
+                  修订历史 ({revisions.data?.length ?? 0})
+                </Button>
+              </div>
+
+              {spec.human_selection_reason && (
+                <div className="alert alert-info" role="note">
+                  <Target size={18} className="alert-icon" aria-hidden="true" />
+                  <div className="alert-body">
+                    <span className="alert-title">人工选择理由 Human selection reason</span>
+                    <span>{spec.human_selection_reason}</span>
+                  </div>
+                </div>
               )}
-            </div>
-            <Button
-              variant="secondary"
-              className="btn-sm"
-              onClick={() => setHistoryOpen(true)}
-              iconStart={<History size={14} aria-hidden="true" />}
-            >
-              修订历史 ({revisions.data?.length ?? 0})
-            </Button>
-          </div>
 
-          {spec.human_selection_reason && (
-            <div className="alert alert-info" role="note">
-              <Target size={18} className="alert-icon" aria-hidden="true" />
-              <div className="alert-body">
-                <span className="alert-title">人工选择理由 Human selection reason</span>
-                <span>{spec.human_selection_reason}</span>
-              </div>
-            </div>
-          )}
-
-          <Section
-            id="sec-core"
-            icon={<Target size={16} />}
-            title="核心定义"
-            subtitle="先把问题、价值主张和产品形态说清楚。"
-          >
-            <div className="deflist">
-              <Def label="核心问题" value={spec.core_problem} />
-              <Def label="价值主张" value={spec.value_proposition} />
-              <Def label="产品形态" value={spec.form_factor} />
-            </div>
-          </Section>
-
-          <Section
-            id="sec-implementation"
-            icon={<CircuitBoard size={16} />}
-            title="实现方式"
-            subtitle="硬件负责感知，AI 负责分类，边界尽量收紧。"
-          >
-            <div className="spec-grid">
-              <div className="stack stack-2">
-                <span className="opp-section-label">硬件架构</span>
-                <Bullets items={spec.hardware_architecture} />
-              </div>
-              <div className="stack stack-2">
-                <span className="opp-section-label">AI 能力</span>
-                <Bullets items={spec.ai_capabilities} />
-              </div>
-            </div>
-            <div className="spec-muted-note">
-              <strong>AI 决策边界：</strong>
-              {spec.ai_decision_boundary}
-            </div>
-          </Section>
-
-          <Section
-            id="sec-delta"
-            icon={<ShieldCheck size={16} />}
-            title="能力增量"
-            subtitle="把今天已有的替代方案和真正新增的能力并列摆出来。"
-          >
-            <div className="deflist">
-              <Def label="创新探索向量" value={spec.capability_delta?.innovation_vector ?? "—"} />
-              <Def
-                label="为什么今天还没有"
-                value={spec.capability_delta?.why_not_available_today ?? "—"}
-              />
-              <Def
-                label="硬件 / 系统增量"
-                value={spec.capability_delta?.hardware_or_system_delta ?? "—"}
-              />
-            </div>
-            {spec.capability_delta && (
-              <div className="spec-grid">
-                <div className="stack stack-2">
-                  <span className="opp-section-label">今天已有的相近能力</span>
-                  <Bullets items={spec.capability_delta.today_equivalents} />
+              <Section
+                id="sec-core"
+                icon={<Target size={16} />}
+                title="核心定义"
+                subtitle="先把问题、价值主张和产品形态说清楚。"
+              >
+                <div className="deflist">
+                  <Def label="核心问题" value={spec.core_problem} />
+                  <Def label="价值主张" value={spec.value_proposition} />
+                  <Def label="产品形态" value={spec.form_factor} />
                 </div>
-                <div className="stack stack-2">
-                  <span className="opp-section-label">真正新增的能力</span>
-                  <Bullets items={spec.capability_delta.new_capabilities} />
-                </div>
-              </div>
+              </Section>
+              </>
             )}
-          </Section>
 
-          <Section
-            id="sec-lifecycle"
-            icon={<Network size={16} />}
-            title="生态与隐私"
-            subtitle="把用户路径、生态协同和隐私原则放在一起看。"
-          >
-            <div className="spec-grid">
-              <div className="stack stack-2">
-                <span className="opp-section-label">用户旅程</span>
-                <Bullets items={spec.user_journeys} />
-              </div>
-              <div className="stack stack-2">
-                <span className="opp-section-label">eufy 生态关系</span>
-                <Bullets items={spec.ecosystem_relationships} />
-              </div>
-            </div>
-            <div className="stack stack-2">
-              <span className="opp-section-label">隐私原则</span>
-              <Bullets items={spec.privacy_principles} />
-            </div>
-          </Section>
+            {activePage === "design" && (
+              <>
+              <Section
+                id="sec-implementation"
+                icon={<CircuitBoard size={16} />}
+                title="实现方式"
+                subtitle="硬件负责感知，AI 负责分类，边界尽量收紧。"
+              >
+                <div className="spec-grid">
+                  <div className="stack stack-2">
+                    <span className="opp-section-label">硬件架构</span>
+                    <Bullets items={spec.hardware_architecture} />
+                  </div>
+                  <div className="stack stack-2">
+                    <span className="opp-section-label">AI 能力</span>
+                    <Bullets items={spec.ai_capabilities} />
+                  </div>
+                </div>
+                <div className="spec-muted-note">
+                  <strong>AI 决策边界：</strong>
+                  {spec.ai_decision_boundary}
+                </div>
+              </Section>
 
-          <Section
-            id="sec-market"
-            icon={<MapPin size={16} />}
-            title="市场与商业"
-            subtitle="按地区、竞品和收入结构一起判断。"
-          >
-            {spec.regional_fit.length > 0 && (
-              <div className="grid-cards">
-                {spec.regional_fit.map((fit) => (
-                  <div className="card card-pad stack stack-3" key={fit.region}>
-                    <div className="row between">
-                      <strong>{fit.region}</strong>
-                      <span className="chip chip-accent">
-                        置信度 {Math.round(fit.confidence * 100)}%
-                      </span>
+              <Section
+                id="sec-delta"
+                icon={<ShieldCheck size={16} />}
+                title="能力增量"
+                subtitle="把今天已有的替代方案和真正新增的能力并列摆出来。"
+              >
+                <div className="deflist">
+                  <Def label="创新探索向量" value={spec.capability_delta?.innovation_vector ?? "—"} />
+                  <Def
+                    label="为什么今天还没有"
+                    value={spec.capability_delta?.why_not_available_today ?? "—"}
+                  />
+                  <Def
+                    label="硬件 / 系统增量"
+                    value={spec.capability_delta?.hardware_or_system_delta ?? "—"}
+                  />
+                </div>
+                {spec.capability_delta && (
+                  <div className="spec-grid">
+                    <div className="stack stack-2">
+                      <span className="opp-section-label">今天已有的相近能力</span>
+                      <Bullets items={spec.capability_delta.today_equivalents} />
                     </div>
-                    <div>
-                      <span className="opp-section-label">适配理由</span>
-                      <Bullets items={fit.fit_reasons} />
-                    </div>
-                    <div>
-                      <span className="opp-section-label">必要调整</span>
-                      <Bullets items={fit.required_adaptations} />
+                    <div className="stack stack-2">
+                      <span className="opp-section-label">真正新增的能力</span>
+                      <Bullets items={spec.capability_delta.new_capabilities} />
                     </div>
                   </div>
-                ))}
-              </div>
+                )}
+              </Section>
+
+              <Section
+                id="sec-lifecycle"
+                icon={<Network size={16} />}
+                title="生态与隐私"
+                subtitle="把用户路径、生态协同和隐私原则放在一起看。"
+              >
+                <div className="spec-grid">
+                  <div className="stack stack-2">
+                    <span className="opp-section-label">用户旅程</span>
+                    <Bullets items={spec.user_journeys} />
+                  </div>
+                  <div className="stack stack-2">
+                    <span className="opp-section-label">eufy 生态关系</span>
+                    <Bullets items={spec.ecosystem_relationships} />
+                  </div>
+                </div>
+                <div className="stack stack-2">
+                  <span className="opp-section-label">隐私原则</span>
+                  <Bullets items={spec.privacy_principles} />
+                </div>
+              </Section>
+              </>
             )}
 
-            <div className="spec-grid" style={{ marginTop: "var(--space-4)" }}>
-              <div className="stack stack-2">
-                <span className="opp-section-label">最接近的现有方案</span>
-                <Bullets items={spec.competitive_positioning.closest_alternatives} />
-              </div>
-              <div className="stack stack-2">
-                <span className="opp-section-label">可防御差异</span>
-                <Bullets items={spec.competitive_positioning.defensible_differences} />
-              </div>
-            </div>
+            {activePage === "market" && (
+              <>
+              <Section
+                id="sec-market"
+                icon={<MapPin size={16} />}
+                title="市场与商业"
+                subtitle="按地区、竞品和收入结构一起判断。"
+              >
+                {spec.regional_fit.length > 0 && (
+                  <div className="grid-cards">
+                    {spec.regional_fit.map((fit) => (
+                      <div className="card card-pad stack stack-3" key={fit.region}>
+                        <div className="row between">
+                          <strong>{fit.region}</strong>
+                          <span className="chip chip-accent">
+                            置信度 {Math.round(fit.confidence * 100)}%
+                          </span>
+                        </div>
+                        <div>
+                          <span className="opp-section-label">适配理由</span>
+                          <Bullets items={fit.fit_reasons} />
+                        </div>
+                        <div>
+                          <span className="opp-section-label">必要调整</span>
+                          <Bullets items={fit.required_adaptations} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-            <div className="spec-muted-note" style={{ marginTop: "var(--space-4)" }}>
-              <strong>为什么不是竞品功能拼接：</strong>
-              {spec.competitive_positioning.non_copycat_rationale}
-            </div>
+                <div className="spec-grid" style={{ marginTop: "var(--space-4)" }}>
+                  <div className="stack stack-2">
+                    <span className="opp-section-label">最接近的现有方案</span>
+                    <Bullets items={spec.competitive_positioning.closest_alternatives} />
+                  </div>
+                  <div className="stack stack-2">
+                    <span className="opp-section-label">可防御差异</span>
+                    <Bullets items={spec.competitive_positioning.defensible_differences} />
+                  </div>
+                </div>
 
-            <div className="spec-grid" style={{ marginTop: "var(--space-4)" }}>
-              <div className="stack stack-2">
-                <span className="opp-section-label">竞品跟进风险</span>
-                <Bullets items={spec.competitive_positioning.copycat_risks} />
-              </div>
-              <div className="stack stack-2">
-                <span className="opp-section-label">后续必须验证</span>
-                <Bullets items={spec.competitive_positioning.validation_questions} />
-              </div>
-            </div>
+                <div className="spec-muted-note" style={{ marginTop: "var(--space-4)" }}>
+                  <strong>为什么不是竞品功能拼接：</strong>
+                  {spec.competitive_positioning.non_copycat_rationale}
+                </div>
 
-            <div className="deflist" style={{ marginTop: "var(--space-4)" }}>
-              <Def label="硬件收入" value={spec.business_model.hardware_revenue} />
-              {spec.business_model.recurring_revenue && (
-                <Def label="持续性收入" value={spec.business_model.recurring_revenue} />
-              )}
-            </div>
-            <div className="spec-grid" style={{ marginTop: "var(--space-4)" }}>
-              <div className="stack stack-2">
-                <span className="opp-section-label">生态带动</span>
-                <Bullets items={spec.business_model.ecosystem_pull_through} />
-              </div>
-              <div className="stack stack-2">
-                <span className="opp-section-label">成本驱动</span>
-                <Bullets items={spec.business_model.cost_drivers} />
-              </div>
-            </div>
-          </Section>
+                <div className="spec-grid" style={{ marginTop: "var(--space-4)" }}>
+                  <div className="stack stack-2">
+                    <span className="opp-section-label">竞品跟进风险</span>
+                    <Bullets items={spec.competitive_positioning.copycat_risks} />
+                  </div>
+                  <div className="stack stack-2">
+                    <span className="opp-section-label">后续必须验证</span>
+                    <Bullets items={spec.competitive_positioning.validation_questions} />
+                  </div>
+                </div>
 
-          <Section
-            id="sec-risks"
-            icon={<AlertTriangle size={16} />}
-            title="风险与假设"
-            subtitle="只保留还没有被验证、但会影响成败的关键点。"
-            tone="danger"
-          >
-            <div className="stack stack-3">
-              {spec.risks.map((risk, index) => (
-                <RiskCard key={index} risk={risk} />
-              ))}
-            </div>
-            <div className="spec-grid" style={{ marginTop: "var(--space-4)" }}>
-              <div className="stack stack-2">
-                <span className="opp-section-label">关键假设</span>
-                <Bullets items={spec.key_assumptions} />
-              </div>
-              <div className="stack stack-2">
-                <span className="opp-section-label">Kill Criteria</span>
-                <Bullets items={spec.kill_criteria} />
-              </div>
-            </div>
-          </Section>
+                <div className="deflist" style={{ marginTop: "var(--space-4)" }}>
+                  <Def label="硬件收入" value={spec.business_model.hardware_revenue} />
+                  {spec.business_model.recurring_revenue && (
+                    <Def label="持续性收入" value={spec.business_model.recurring_revenue} />
+                  )}
+                </div>
+                <div className="spec-grid" style={{ marginTop: "var(--space-4)" }}>
+                  <div className="stack stack-2">
+                    <span className="opp-section-label">生态带动</span>
+                    <Bullets items={spec.business_model.ecosystem_pull_through} />
+                  </div>
+                  <div className="stack stack-2">
+                    <span className="opp-section-label">成本驱动</span>
+                    <Bullets items={spec.business_model.cost_drivers} />
+                  </div>
+                </div>
+              </Section>
 
-          <div id="sec-copilot">
-            <ProductDefinitionCopilot
-              product={spec}
-              draft={draft}
-              onDraftChange={setDraft}
-              onScrollToSection={scrollToSection}
-            />
+              <Section
+                id="sec-risks"
+                icon={<AlertTriangle size={16} />}
+                title="风险与假设"
+                subtitle="只保留还没有被验证、但会影响成败的关键点。"
+                tone="danger"
+              >
+                <div className="stack stack-3">
+                  {spec.risks.map((risk, index) => (
+                    <RiskCard key={index} risk={risk} />
+                  ))}
+                </div>
+                <div className="spec-grid" style={{ marginTop: "var(--space-4)" }}>
+                  <div className="stack stack-2">
+                    <span className="opp-section-label">关键假设</span>
+                    <Bullets items={spec.key_assumptions} />
+                  </div>
+                  <div className="stack stack-2">
+                    <span className="opp-section-label">Kill Criteria</span>
+                    <Bullets items={spec.kill_criteria} />
+                  </div>
+                </div>
+              </Section>
+              </>
+            )}
+
+            {activePage === "workbench" && (
+              <>
+              <div id="sec-copilot">
+                <ProductDefinitionCopilot
+                  product={spec}
+                  draft={draft}
+                  onDraftChange={setDraft}
+                  onScrollToSection={scrollToSection}
+                />
+              </div>
+
+              <DefinitionReadinessPanel product={spec} onAskRecommended={askRecommended} />
+              </>
+            )}
           </div>
-
-          <DefinitionReadinessPanel product={spec} onAskRecommended={askRecommended} />
         </div>
       </div>
 
@@ -424,18 +465,24 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
   );
 }
 
-function SpecToc({ onNavigate }: { onNavigate: (anchor: string) => void }) {
+function SpecToc({
+  activePage,
+  onNavigate,
+}: {
+  activePage: SpecPageKey;
+  onNavigate: (page: SpecPageKey) => void;
+}) {
   return (
     <nav className="spec-toc" aria-label="产品定义目录">
       {TOC_GROUPS.map((group) => (
-        <div className="spec-toc-group" key={group.label}>
+        <div className={`spec-toc-group${activePage === group.page ? " is-active" : ""}`} key={group.label}>
           <span className="spec-toc-label">{group.label}</span>
           {group.items.map((item) => (
             <button
-              key={item.anchor}
+              key={item.label}
               type="button"
-              className="spec-toc-link"
-              onClick={() => onNavigate(item.anchor)}
+              className={`spec-toc-link${activePage === item.page ? " is-active" : ""}`}
+              onClick={() => onNavigate(item.page)}
             >
               {item.label}
             </button>
@@ -452,6 +499,7 @@ function Section({
   subtitle,
   children,
   tone,
+  className,
   id,
 }: {
   icon: ReactNode;
@@ -459,10 +507,11 @@ function Section({
   subtitle?: string;
   children: ReactNode;
   tone?: "danger";
+  className?: string;
   id?: string;
 }) {
   return (
-    <section className="card card-pad spec-section" id={id}>
+    <section className={`card card-pad spec-section${className ? ` ${className}` : ""}`} id={id}>
       <div className="spec-section-head">
         <span
           className="agent-avatar spec-section-icon"
