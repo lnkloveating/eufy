@@ -261,6 +261,18 @@ async def get_forecast_run(run_id: str) -> ForecastRun:
     return run
 
 
+@router.delete(
+    "/forecast-runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["forecasting"]
+)
+async def delete_forecast_run(run_id: str) -> None:
+    try:
+        repository.delete_run(run_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="forecast run not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 @router.get(
     "/forecast-runs/{run_id}/product-definition-state",
     response_model=RunProductDefinitionState,
@@ -550,9 +562,7 @@ async def get_latest_validation_project(product_id: str) -> ValidationProject:
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="product not found") from exc
     except LookupError as exc:
-        raise HTTPException(
-            status_code=404, detail="该产品尚未创建预验证项目"
-        ) from exc
+        raise HTTPException(status_code=404, detail="该产品尚未创建预验证项目") from exc
 
 
 @router.get(

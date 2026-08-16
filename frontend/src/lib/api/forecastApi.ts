@@ -76,6 +76,12 @@ export function getForecastRun(runId: string, signal?: AbortSignal): Promise<For
   return request<ForecastRun>(`/forecast-runs/${encodeURIComponent(runId)}`, { signal });
 }
 
+export function deleteForecastRun(runId: string): Promise<void> {
+  return request<void>(`/forecast-runs/${encodeURIComponent(runId)}`, {
+    method: "DELETE",
+  });
+}
+
 export function getRunProductDefinitionState(
   runId: string,
   signal?: AbortSignal,

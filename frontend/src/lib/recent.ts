@@ -40,3 +40,8 @@ export function rememberRun(runId: string): void {
 export function getRecentRun(): string | null {
   return safeGet(RUN_KEY);
 }
+
+export function forgetRecentRun(): void {
+  safeRemove(RUN_KEY);
+  safeRemove(LEGACY_PRODUCT_KEY);
+}

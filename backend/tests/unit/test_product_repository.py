@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 from test_workflow import _product_spec
 
+from eufy_security_agents.domain.models import AgentEvent, Artifact, ForecastRequest
 from eufy_security_agents.domain.models import (
     DefinitionStatus,
     ProductQuestion,
@@ -14,8 +16,11 @@ from eufy_security_agents.domain.models import (
     ProductRevision,
     ProductSpec,
     QuestionCategory,
+    RunStatus,
     SuggestionResolution,
 )
+from eufy_security_agents.domain.validation import ValidationProject, ValidationProjectStatus
+from eufy_security_agents.domain.validation_insights import SurveyResponse, ValidationSurvey
 from eufy_security_agents.infrastructure.repositories import SqlAlchemyRunRepository
 
 
@@ -129,3 +134,96 @@ def test_latest_selection_is_scoped_to_run(tmp_path: Path) -> None:
     latest = repository.get_latest_selection("forecast-1")
     assert latest is not None
     assert latest.candidate_id == "CAND-002"
+
+
+def test_delete_run_cascades_to_related_rows(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    request = ForecastRequest(question="Delete recent research run")
+    run = repository.create_run(request)
+    repository.update_run(run.id, status=RunStatus.COMPLETED, stage="done")
+
+    product = _product_spec().model_copy(
+        update={"id": "product-1", "source_run_id": run.id, "source_candidate_id": "CAND-001"}
+    )
+    repository.save_product(product)
+    repository.save_question_record(_question_record(product.id), idempotency_key="q-key")
+    repository.save_revision(
+        ProductRevision(
+            id="rev-1",
+            product_id="product-1",
+            from_version="1.0",
+            to_version="1.1",
+            change_reason="update",
+            before_snapshot=product,
+            after_snapshot=product.model_copy(update={"version": "1.1"}),
+        ),
+        idempotency_key="rev-key",
+    )
+    repository.save_suggestion_resolution(
+        SuggestionResolution(suggestion_id="sc-1", product_id="product-1", resolution="accepted")
+    )
+    repository.reserve_selection(run.id, "selection-key", "CAND-001")
+    repository.add_event(
+        AgentEvent(
+            run_id=run.id,
+            sequence=1,
+            event_type="agent_completed",
+            message="done",
+            payload={},
+            created_at=datetime.now(UTC),
+        )
+    )
+    repository.save_artifact(
+        Artifact(
+            id="artifact-1",
+            run_id=run.id,
+            kind="result",
+            producer="forecast-consensus",
+            payload={"ok": True},
+            created_at=datetime.now(UTC),
+        )
+    )
+
+    project = ValidationProject.model_construct(
+        id="vproj-1",
+        product_id=product.id,
+        product_version=product.version,
+        product_snapshot=product,
+        status=ValidationProjectStatus.COMPLETED,
+        experiments=[],
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    repository.save_validation_project(project)
+    survey = ValidationSurvey.model_construct(
+        id="survey-1",
+        token="survey-token-1",
+        project_id=project.id,
+        product_id=product.id,
+        product_name=product.name,
+        title="survey",
+        description="survey",
+        questions=[],
+        linked_experiment_ids=[],
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    repository.save_validation_survey(survey)
+    repository.save_survey_response(
+        SurveyResponse(id="resp-1", survey_id=survey.id, answers={}, created_at=datetime.now(UTC))
+    )
+
+    repository.delete_run(run.id)
+
+    assert repository.get_run(run.id) is None
+    assert repository.get_product(product.id) is None
+    assert repository.list_question_records(product.id) == []
+    assert repository.list_revisions(product.id) == []
+    assert repository.list_suggestion_resolutions(product.id) == []
+    assert repository.get_latest_selection(run.id) is None
+    assert repository.list_events(run.id) == []
+    assert repository.get_artifact(run.id, "result") is None
+    assert repository.get_validation_project(project.id) is None
+    assert repository.get_validation_survey_for_project(project.id) is None
+    assert repository.list_survey_responses(survey.id) == []
+    assert repository.count_runs() == 0

@@ -14,6 +14,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     create_engine,
+    delete,
     func,
     select,
 )
@@ -326,6 +327,80 @@ class SqlAlchemyRunRepository:
         with self._sessions() as session:
             return session.scalar(statement) or 0
 
+    def delete_run(self, run_id: str) -> None:
+        with self._sessions.begin() as session:
+            row = session.get(ForecastRunRow, run_id)
+            if row is None:
+                raise KeyError(run_id)
+            if row.status not in {RunStatus.COMPLETED.value, RunStatus.FAILED.value}:
+                raise ValueError("only completed or failed runs can be deleted")
+
+            product_ids = list(
+                session.scalars(select(ProductRow.id).where(ProductRow.run_id == run_id)).all()
+            )
+            project_ids = list(
+                session.scalars(
+                    select(ValidationProjectRow.id).where(
+                        ValidationProjectRow.product_id.in_(product_ids)
+                    )
+                ).all()
+                if product_ids
+                else []
+            )
+            survey_ids = list(
+                session.scalars(
+                    select(ValidationSurveyRow.id).where(
+                        ValidationSurveyRow.project_id.in_(project_ids)
+                    )
+                ).all()
+                if project_ids
+                else []
+            )
+
+            session.execute(delete(ForecastRunKeyRow).where(ForecastRunKeyRow.run_id == run_id))
+            session.execute(delete(ProductSelectionRow).where(ProductSelectionRow.run_id == run_id))
+            session.execute(delete(ArtifactRow).where(ArtifactRow.run_id == run_id))
+            session.execute(delete(AgentEventRow).where(AgentEventRow.run_id == run_id))
+            if product_ids:
+                session.execute(
+                    delete(ProductQuestionRow).where(ProductQuestionRow.product_id.in_(product_ids))
+                )
+                session.execute(
+                    delete(ProductRevisionRow).where(ProductRevisionRow.product_id.in_(product_ids))
+                )
+                session.execute(
+                    delete(SuggestionResolutionRow).where(
+                        SuggestionResolutionRow.product_id.in_(product_ids)
+                    )
+                )
+                session.execute(
+                    delete(ValidationProjectRow).where(
+                        ValidationProjectRow.product_id.in_(product_ids)
+                    )
+                )
+            if project_ids:
+                session.execute(
+                    delete(ValidationFindingRow).where(
+                        ValidationFindingRow.project_id.in_(project_ids)
+                    )
+                )
+                session.execute(
+                    delete(ValidationEventRow).where(ValidationEventRow.project_id.in_(project_ids))
+                )
+                session.execute(
+                    delete(ValidationSurveyRow).where(
+                        ValidationSurveyRow.project_id.in_(project_ids)
+                    )
+                )
+            if survey_ids:
+                session.execute(
+                    delete(ValidationSurveyResponseRow).where(
+                        ValidationSurveyResponseRow.survey_id.in_(survey_ids)
+                    )
+                )
+            session.execute(delete(ProductRow).where(ProductRow.run_id == run_id))
+            session.execute(delete(ForecastRunRow).where(ForecastRunRow.id == run_id))
+
     def update_run(
         self,
         run_id: str,
@@ -551,9 +626,7 @@ class SqlAlchemyRunRepository:
             rows = session.scalars(statement).all()
         return [ProductRevision.model_validate_json(row.payload_json) for row in rows]
 
-    def find_revision_by_key(
-        self, product_id: str, idempotency_key: str
-    ) -> ProductRevision | None:
+    def find_revision_by_key(self, product_id: str, idempotency_key: str) -> ProductRevision | None:
         statement = select(ProductRevisionRow).where(
             ProductRevisionRow.product_id == product_id,
             ProductRevisionRow.idempotency_key == idempotency_key,
@@ -847,12 +920,8 @@ class SqlAlchemyRunRepository:
                 existing.payload_json = survey.model_dump_json()
                 existing.updated_at = survey.updated_at
 
-    def get_validation_survey_for_project(
-        self, project_id: str
-    ) -> ValidationSurvey | None:
-        statement = select(ValidationSurveyRow).where(
-            ValidationSurveyRow.project_id == project_id
-        )
+    def get_validation_survey_for_project(self, project_id: str) -> ValidationSurvey | None:
+        statement = select(ValidationSurveyRow).where(ValidationSurveyRow.project_id == project_id)
         with self._sessions() as session:
             row = session.scalars(statement).first()
         return ValidationSurvey.model_validate_json(row.payload_json) if row else None

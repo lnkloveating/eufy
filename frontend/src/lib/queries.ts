@@ -40,6 +40,7 @@ import { ApiError } from "./api/client";
 import {
   applyProductRevision,
   askProductQuestion,
+  deleteForecastRun,
   confirmProduct,
   createForecastRun,
   createSelection,
@@ -139,6 +140,20 @@ export function useCreateRun() {
   return useMutation<ForecastRun, ApiError, CreateRunVariables>({
     mutationFn: ({ request, idempotencyKey }) =>
       createForecastRun(request, idempotencyKey),
+  });
+}
+
+export function useDeleteForecastRun() {
+  const queryClient = useQueryClient();
+  return useMutation<void, ApiError, string>({
+    mutationFn: (runId) => deleteForecastRun(runId),
+    onSuccess: (_data, runId) => {
+      void queryClient.invalidateQueries({ queryKey: ["forecast-runs", "recent"] });
+      void queryClient.removeQueries({ queryKey: queryKeys.run(runId) });
+      void queryClient.removeQueries({ queryKey: queryKeys.productDefinitionState(runId) });
+      void queryClient.removeQueries({ queryKey: queryKeys.result(runId) });
+      void queryClient.removeQueries({ queryKey: queryKeys.artifacts(runId) });
+    },
   });
 }
 
