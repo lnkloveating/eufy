@@ -52,6 +52,17 @@ eufy-security-agent-platform/
 
 先运行并评估后端输出，再实现读取任意ProductSpec的技术、商业、隐私、UX和2D场景验证器；后端接口稳定后再进入前端。
 
+## Docker 部署
+
+仓库根目录已提供单机部署配置。复制环境变量模板、填写模型密钥，然后启动：
+
+```bash
+cp .env.deploy.example .env
+docker compose up -d --build
+```
+
+部署拓扑、服务器要求、健康检查、更新与备份命令见 [`infra/README.md`](infra/README.md)。当前版本没有用户认证，公网部署前必须放在 VPN、内网或身份访问网关后面。
+
 ## License
 
 Private / proprietary. eufy 名称仅用于项目命名与业务场景描述。
