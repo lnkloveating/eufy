@@ -299,7 +299,7 @@ export function RunWorkbenchPage() {
     },
     {
       key: "analysis",
-      label: "多 Agent 分析",
+      label: "多智能体分析",
       count:
         data.status === "completed"
           ? (result.data?.lens_deliberations.length ?? 0)
@@ -705,7 +705,7 @@ function ProposalDetailsDialog({
       <div className="stack stack-4">
         <div className="card card-pad stack stack-3">
           <div className="row between wrap row-gap-2" style={{ alignItems: "flex-start" }}>
-            <span className="eyebrow">Research Brief · 输入追溯</span>
+            <span className="eyebrow">研究任务 · 输入追溯</span>
             <span className="chip chip-outline">{request.category}</span>
           </div>
           <strong style={{ fontSize: "var(--text-lg)", lineHeight: 1.35 }}>
@@ -773,16 +773,15 @@ function RunCompletionSnapshot({
   events: AgentEvent[];
 }) {
   const metrics = aggregateArtifactMetrics(artifacts);
-  const degradation = deriveDegradation(events);
 
   return (
     <div className="stack stack-5">
       <div className="card card-pad research-summary">
         <div className="row between wrap row-gap-2" style={{ alignItems: "flex-start" }}>
-          <span className="eyebrow">Research Workspace · 结果摘要</span>
-          <span className={`badge ${degradation.degraded ? "badge-degraded" : "badge-completed"}`}>
+          <span className="eyebrow">研究工作台 · 结果摘要</span>
+          <span className="badge badge-completed">
             <CheckCircle2 size={12} aria-hidden="true" />
-            {degradation.degraded ? "已降级完成" : "研究完成"}
+            研究完成
           </span>
         </div>
         <div className="summary-grid">
@@ -798,12 +797,12 @@ function RunCompletionSnapshot({
           />
           <SummaryStat
             icon={<Cpu size={12} aria-hidden="true" />}
-            label="完成 Agent"
+            label="完成智能体"
             value={`${completedAgentCount(events)} 个`}
           />
           <SummaryStat
             icon={<Gauge size={12} aria-hidden="true" />}
-            label="总 Token"
+            label="模型总用量"
             value={metrics.totalTokens.toLocaleString()}
           />
           <SummaryStat
@@ -819,31 +818,19 @@ function RunCompletionSnapshot({
         </div>
       </div>
 
-      {degradation.degraded ? (
-        <div className="alert alert-warn" role="status">
-          <AlertTriangle size={18} className="alert-icon" aria-hidden="true" />
-          <div className="alert-body">
-            <span className="alert-title">研究已降级继续完成</span>
-            <span>
-              当前结果可用，但包含 {degradation.count} 个降级环节。建议先查看“多 Agent 分析”和研究证据，再进入产品定义选择候选。
-            </span>
-          </div>
+      <div className="alert alert-success" role="status">
+        <CheckCircle2 size={18} className="alert-icon" aria-hidden="true" />
+        <div className="alert-body">
+          <span className="alert-title">研究完成，等待人工选择</span>
+          <span>智能体分析已保留在实时研究中，候选产品已经转移到独立的“产品定义”页面。</span>
         </div>
-      ) : (
-        <div className="alert alert-success" role="status">
-          <CheckCircle2 size={18} className="alert-icon" aria-hidden="true" />
-          <div className="alert-body">
-            <span className="alert-title">研究完成，等待人工选择</span>
-            <span>Agent 分析已保留在实时研究中，候选产品已经转移到独立的“产品定义”页面。</span>
-          </div>
-        </div>
-      )}
+      </div>
 
       <div className="card card-pad stack stack-3">
         <span className="opp-section-label">下一步</span>
         <strong>进入产品定义，对比并选择候选产品</strong>
         <span className="subtle" style={{ fontSize: "var(--text-sm)" }}>
-          实时研究保留完整分析过程；产品定义负责候选比较、人工选择和最终 ProductSpec。
+          实时研究保留完整分析过程；产品定义负责候选比较、人工选择和最终产品定义。
         </span>
         <div>
           <Link to={`/runs/${encodeURIComponent(runId)}/product-definition`}>
@@ -949,10 +936,10 @@ function RunAnalysisWorkspace({
   if (status !== "completed") {
     return (
       <div className="card card-pad stack stack-4 run-empty-state">
-        <span className="opp-section-label">多 Agent 分析</span>
+        <span className="opp-section-label">多智能体分析</span>
         <strong>结构化分析仍在生成中</strong>
         <span className="subtle" style={{ fontSize: "var(--text-sm)" }}>
-          各 Agent 的独立判断、交叉质疑和观点修正会在相应阶段完成后写入研究产物。
+          各智能体的独立判断、交叉质疑和观点修正会在相应阶段完成后写入研究产物。
         </span>
         {artifacts.length > 0 && <IntermediateArtifacts artifacts={artifacts} />}
       </div>
@@ -962,7 +949,7 @@ function RunAnalysisWorkspace({
   if (result.isLoading) {
     return (
       <div className="card card-pad stack stack-3">
-        <span className="opp-section-label">正在载入多 Agent 分析…</span>
+        <span className="opp-section-label">正在载入多智能体分析…</span>
         <SkeletonText lines={6} />
       </div>
     );
@@ -971,7 +958,7 @@ function RunAnalysisWorkspace({
   if (result.isError || !result.data) {
     return (
       <div className="card card-pad">
-        <ErrorState title="无法载入多 Agent 分析" error={result.error} onRetry={() => result.refetch()} />
+        <ErrorState title="无法载入多智能体分析" error={result.error} onRetry={() => result.refetch()} />
       </div>
     );
   }
@@ -989,15 +976,14 @@ function MultiAgentResearchReport({
   events: AgentEvent[];
 }) {
   const metrics = aggregateArtifactMetrics(artifacts);
-  const degradation = deriveDegradation(events);
   return (
     <div className="stack stack-5">
       <div className="card card-pad research-summary">
         <div className="row between wrap row-gap-2" style={{ alignItems: "flex-start" }}>
-          <span className="eyebrow">Research Report · 研究总览</span>
-          <span className={`badge ${degradation.degraded ? "badge-degraded" : "badge-completed"}`}>
+          <span className="eyebrow">研究报告 · 研究总览</span>
+          <span className="badge badge-completed">
             <CheckCircle2 size={12} aria-hidden="true" />
-            {degradation.degraded ? "已降级完成" : "研究完成"}
+            研究完成
           </span>
         </div>
         <div className="summary-grid">
@@ -1013,12 +999,12 @@ function MultiAgentResearchReport({
           />
           <SummaryStat
             icon={<Cpu size={12} aria-hidden="true" />}
-            label="完成 Agent"
+            label="完成智能体"
             value={`${completedAgentCount(events)} 个`}
           />
           <SummaryStat
             icon={<Gauge size={12} aria-hidden="true" />}
-            label="总 Token"
+            label="模型总用量"
             value={metrics.totalTokens.toLocaleString()}
           />
           <SummaryStat
@@ -1026,45 +1012,16 @@ function MultiAgentResearchReport({
             label="研究耗时"
             value={formatDurationMs(metrics.totalDurationMs)}
           />
-          {degradation.degraded && (
-            <SummaryStat
-              icon={<AlertTriangle size={12} aria-hidden="true" />}
-              label="降级环节"
-              value={`${degradation.count} 项`}
-            />
-          )}
         </div>
       </div>
 
-      {degradation.degraded ? (
-        <div className="alert alert-warn" role="status">
-          <AlertTriangle size={18} className="alert-icon" aria-hidden="true" />
-          <div className="alert-body">
-            <span className="alert-title">研究已降级继续完成</span>
-            <span>
-              以下环节因模型限制或个别 Agent 失败而降级，其余分析已正常完成。结果并非“完整验证”，
-              请结合降级说明查看：
-            </span>
-            {degradation.reasons.length > 0 && (
-              <ul className="degraded-reasons">
-                {degradation.reasons.map((item, index) => (
-                  <li key={`${item.stage}-${index}`}>
-                    <span className="chip chip-outline">{item.stage}</span> {item.reason}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+      <div className="alert alert-success" role="status">
+        <CheckCircle2 size={18} className="alert-icon" aria-hidden="true" />
+        <div className="alert-body">
+          <span className="alert-title">研究完成，等待人工选择</span>
+          <span>以下为多智能体分析记录；候选比较与选择请进入左侧“产品定义”。</span>
         </div>
-      ) : (
-        <div className="alert alert-success" role="status">
-          <CheckCircle2 size={18} className="alert-icon" aria-hidden="true" />
-          <div className="alert-body">
-            <span className="alert-title">研究完成，等待人工选择</span>
-            <span>以下为完整多 Agent 分析记录；候选比较与选择请进入左侧“产品定义”。</span>
-          </div>
-        </div>
-      )}
+      </div>
 
       <MultiAgentAnalysis result={result} />
     </div>

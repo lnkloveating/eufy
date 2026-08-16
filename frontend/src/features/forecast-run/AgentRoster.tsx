@@ -158,7 +158,7 @@ export function AgentRoster({ events }: AgentRosterProps) {
     <div className="panel">
       <div className="panel-head">
         <span className="panel-title">
-          <Cpu size={16} aria-hidden="true" /> Agent 团队
+          <Cpu size={16} aria-hidden="true" /> 智能体团队
         </span>
         <span className="chip">
           {done}/{total} 完成

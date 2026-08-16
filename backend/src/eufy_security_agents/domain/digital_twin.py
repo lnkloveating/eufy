@@ -86,57 +86,57 @@ class ProductDigitalTwinSpec(BaseModel):
 
 
 _COMPONENT_RULES: tuple[tuple[DigitalTwinComponentKind, str, tuple[str, ...]], ...] = (
-    (DigitalTwinComponentKind.CAMERA, "Camera", ("camera", "摄像", "镜头", "视觉")),
-    (DigitalTwinComponentKind.RADAR, "mmWave radar", ("radar", "mmwave", "毫米波", "雷达")),
-    (DigitalTwinComponentKind.MOTION, "Motion sensor", ("pir", "motion", "运动传感", "人体感应")),
+    (DigitalTwinComponentKind.CAMERA, "摄像头", ("camera", "摄像", "镜头", "视觉")),
+    (DigitalTwinComponentKind.RADAR, "毫米波雷达", ("radar", "mmwave", "毫米波", "雷达")),
+    (DigitalTwinComponentKind.MOTION, "运动传感器", ("pir", "motion", "运动传感", "人体感应")),
     (
         DigitalTwinComponentKind.CONTACT,
-        "Contact sensor",
+        "门窗传感器",
         ("contact", "door/window", "门窗", "接触传感"),
     ),
-    (DigitalTwinComponentKind.ACOUSTIC, "Acoustic sensing", ("acoustic", "sound", "声音", "声学")),
+    (DigitalTwinComponentKind.ACOUSTIC, "声学感知", ("acoustic", "sound", "声音", "声学")),
     (
         DigitalTwinComponentKind.ENVIRONMENTAL,
-        "Environment sensor",
+        "环境传感器",
         ("temperature", "humidity", "温度", "湿度", "环境传感"),
     ),
     (
         DigitalTwinComponentKind.EDGE_AI,
-        "Edge AI",
+        "端侧 AI",
         ("edge ai", "npu", "ai chip", "端侧", "本地 ai", "本地推理"),
     ),
     (
         DigitalTwinComponentKind.SECURE_ELEMENT,
-        "Secure element",
+        "硬件安全元件",
         ("secure element", "security chip", "安全芯片", "安全元件"),
     ),
     (
         DigitalTwinComponentKind.LOCAL_STORAGE,
-        "Local storage",
+        "本地存储",
         ("local storage", "本地存储", "sd card", "emmc"),
     ),
     (
         DigitalTwinComponentKind.PRIVACY_SWITCH,
-        "Privacy switch",
+        "物理隐私开关",
         ("privacy switch", "physical switch", "privacy shutter", "隐私开关", "物理开关", "遮挡"),
     ),
     (
         DigitalTwinComponentKind.DISPLAY,
-        "Display",
+        "显示屏",
         ("display", "screen", "touchscreen", "屏幕", "触摸屏"),
     ),
-    (DigitalTwinComponentKind.SPEAKER, "Speaker", ("speaker", "扬声器", "音箱")),
-    (DigitalTwinComponentKind.MICROPHONE, "Microphone", ("microphone", "mic", "麦克风")),
-    (DigitalTwinComponentKind.SIREN, "Siren", ("siren", "alarm", "警报器", "声光报警")),
+    (DigitalTwinComponentKind.SPEAKER, "扬声器", ("speaker", "扬声器", "音箱")),
+    (DigitalTwinComponentKind.MICROPHONE, "麦克风", ("microphone", "mic", "麦克风")),
+    (DigitalTwinComponentKind.SIREN, "警报器", ("siren", "alarm", "警报器", "声光报警")),
     (
         DigitalTwinComponentKind.WIRELESS,
-        "Wireless radio",
+        "无线连接",
         ("wifi", "wi-fi", "thread", "zigbee", "bluetooth", "无线"),
     ),
-    (DigitalTwinComponentKind.BATTERY, "Battery", ("battery", "电池", "充电")),
+    (DigitalTwinComponentKind.BATTERY, "电池", ("battery", "电池", "充电")),
     (
         DigitalTwinComponentKind.HOMEBASE,
-        "HomeBase module",
+        "家庭安全中枢",
         ("homebase", "gateway", "hub", "网关", "中枢"),
     ),
 )
@@ -275,7 +275,7 @@ def build_product_digital_twin(spec: ProductSpec) -> ProductDigitalTwinSpec:
             DigitalTwinComponent(
                 id="component-edge_ai",
                 kind=DigitalTwinComponentKind.EDGE_AI,
-                label="AI decision core",
+                label="AI 决策核心",
             )
         )
 
@@ -290,8 +290,8 @@ def build_product_digital_twin(spec: ProductSpec) -> ProductDigitalTwinSpec:
         accent_color=accent_color,
         components=components,
         generation_basis=[
-            f"Form factor: {spec.form_factor}",
-            f"Hardware modules: {len(spec.hardware_architecture)}",
-            f"Detected components: {len(components)}",
+            f"产品形态：{spec.form_factor}",
+            f"硬件模块：{len(spec.hardware_architecture)} 个",
+            f"识别到的样机组件：{len(components)} 个",
         ],
     )

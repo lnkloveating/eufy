@@ -35,6 +35,7 @@ import type {
 import { ApiError } from "../../lib/api/client";
 import { formatClock, formatDateTime } from "../../lib/formatters";
 import { rememberRun } from "../../lib/recent";
+import { localizeProductSpecForDisplay } from "../../lib/displayLocalization";
 import {
   queryKeys,
   useCreateValidationProject,
@@ -132,7 +133,7 @@ export function ValidationLabPage() {
         <EmptyState
           icon={<Lock size={26} aria-hidden="true" />}
           title="请先完成产品定义"
-          description="验证实验室仅在产品定义达到 Validation Ready 后开放。请回到产品定义页处理阻塞项并确认。"
+          description="验证实验室仅在产品定义达到验证准备完成后开放。请回到产品定义页处理阻塞项并确认。"
           action={
             <Link to={`/products/${encodeURIComponent(product.data.id)}`}>
               <Button variant="primary">前往产品定义</Button>
@@ -231,6 +232,10 @@ function ValidationLabContent({
   events: ValidationEvent[];
 }) {
   const toast = useToast();
+  const displayProduct = useMemo(
+    () => localizeProductSpecForDisplay(project.product_snapshot),
+    [project.product_snapshot],
+  );
   const runMutation = useRunValidationProject(productId, project.id);
   const sendBack = useSendBackFinding(productId, project.id);
   const statusMeta = PROJECT_STATUS_META[project.status];
@@ -267,17 +272,17 @@ function ValidationLabContent({
             <FlaskConical size={13} aria-hidden="true" /> 预验证实验室
           </span>
           <span className="chip" style={{ background: "rgba(255,255,255,0.1)", color: "#cdd9e8" }}>
-            ProductSpec V{project.product_version}
+            产品定义 V{project.product_version}
           </span>
           <span className={`badge ${statusMeta.badge}`}>{statusMeta.label}</span>
         </div>
-        <h1>{project.product_snapshot.name}</h1>
+        <h1>{displayProduct.name}</h1>
         <p className="hero-sub" style={{ maxWidth: "72ch" }}>
-          {project.product_snapshot.one_sentence_definition}
+          {displayProduct.one_sentence_definition}
         </p>
         <div className="hero-health">
           <div className="hero-stat">
-            <span className="hero-stat-label">Validation Ready</span>
+            <span className="hero-stat-label">验证准备状态</span>
             <span className="hero-stat-value" style={{ fontSize: "var(--text-base)" }}>
               已就绪
             </span>
@@ -342,7 +347,7 @@ function ValidationLabContent({
       </Section>
 
       {/* C. Multi-agent process */}
-      <Section title="多 Agent 预验证过程" subtitle="技术、隐私、场景、商业、反方审查与裁决器的实时活动。">
+      <Section title="多智能体预验证过程" subtitle="技术、隐私、场景、商业、反方审查与裁决器的实时活动。">
         <div className="vlab-roles">
           {ROLES.map((role) => (
             <div className="vlab-role-card" key={role.name}>
@@ -359,7 +364,7 @@ function ValidationLabContent({
       {/* D. Product-specific parametric digital twin — usage tutorial */}
       <Section
         title="3D 产品数字样机"
-        subtitle="根据当前 ProductSpec 的产品形态、硬件模块与隐私能力确定性生成。点击样机启动设备，了解它有哪些功能、如何使用，以及告警时的样貌。"
+        subtitle="根据当前产品定义的产品形态、硬件模块与隐私能力确定性生成。点击样机启动设备，了解它有哪些功能、如何使用，以及告警时的样貌。"
       >
         {project.digital_twin ? (
           <Suspense
@@ -372,8 +377,8 @@ function ValidationLabContent({
           >
             <ProductDigitalTwin
               spec={project.digital_twin}
-              product={project.product_snapshot}
-              productName={project.product_snapshot.name}
+              product={displayProduct}
+              productName={displayProduct.name}
             />
           </Suspense>
         ) : (
@@ -399,7 +404,7 @@ function ValidationLabContent({
       {/* F. Feedback to product definition */}
       <Section
         title="反馈产品定义"
-        subtitle="将模拟发现发送回产品定义 Copilot；不会自动修改 ProductSpec，需用户在定义页确认。"
+        subtitle="将模拟发现发送回产品定义助手；不会自动修改产品定义，需用户在定义页确认。"
       >
         {allFindings.length === 0 ? (
           <EmptyState
@@ -424,7 +429,7 @@ function ValidationLabContent({
               to={`/products/${encodeURIComponent(productId)}#sec-copilot`}
               className="row row-gap-2 muted spec-back-link"
             >
-              前往产品定义 Copilot 审查已发送的建议 →
+              前往产品定义助手审查已发送的建议 →
             </Link>
           </div>
         )}
@@ -736,11 +741,11 @@ const ANALYSIS_ACTOR_LABELS: Record<ValidationAnalysisStep["actor"], string> = {
   hypothesis_parser: "验证问题解析",
   evidence_retrieval: "已有证据检索",
   deterministic_simulation: "确定性场景模拟",
-  technology: "技术验证 Agent",
-  privacy_security: "隐私安全 Agent",
-  user_scenario: "用户场景 Agent",
-  business: "商业验证 Agent",
-  adversarial: "反方审查 Agent",
+  technology: "技术验证智能体",
+  privacy_security: "隐私安全智能体",
+  user_scenario: "用户场景智能体",
+  business: "商业验证智能体",
+  adversarial: "反方审查智能体",
   ai_analysis: "AI 补充分析",
   adjudicator: "最终裁决器",
 };

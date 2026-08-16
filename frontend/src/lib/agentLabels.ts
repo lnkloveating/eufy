@@ -21,24 +21,24 @@ const AGENT_LABELS: Record<string, AgentDescriptor> = {
   "deliberator-technology_trends": { label: "技术趋势审议", role: "交叉审核" },
   "deliberator-security_futures": { label: "安防未来审议", role: "交叉审核" },
   "deliberator-market_futures": { label: "市场未来审议", role: "交叉审核" },
-  "deliberation-panel": { label: "交叉审核委员会", role: "Deliberation Panel" },
-  "forecast-consensus": { label: "共识裁决 Agent", role: "Consensus Judge" },
-  "opportunity-synthesizer": { label: "机会聚合器", role: "Opportunity Synthesizer" },
-  "local-competitor-store": { label: "本地竞品资料库", role: "Competitor Evidence" },
-  "competitor-analysis": { label: "竞品分析师", role: "Competitive Intelligence" },
-  "current-product-auditor": { label: "当前产品审计 Agent", role: "Novelty Gate" },
-  "candidate-novelty-auditor": { label: "候选创新查重 Agent", role: "Novelty Gate" },
-  "portfolio-diversity-auditor": { label: "候选组合去重 Agent", role: "Portfolio Gate" },
-  "product-architect": { label: "产品架构师", role: "Product Architect" },
-  "reviewer-innovation": { label: "创新性评审", role: "盲评 Reviewer" },
-  "reviewer-user_value": { label: "用户价值评审", role: "盲评 Reviewer" },
-  "reviewer-business_value": { label: "商业价值评审", role: "盲评 Reviewer" },
-  "reviewer-cost_effectiveness": { label: "性价比评审", role: "盲评 Reviewer" },
-  "reviewer-feasibility": { label: "可行性评审", role: "盲评 Reviewer" },
-  "reviewer-eufy_synergy": { label: "eufy 协同性评审", role: "盲评 Reviewer" },
-  "product-definition": { label: "产品定义 Agent", role: "Product Definition" },
-  "blind-review-panel": { label: "盲评委员会", role: "Review Panel" },
-  "futures-panel": { label: "未来预测委员会", role: "Futures Panel" },
+  "deliberation-panel": { label: "交叉审核委员会", role: "交叉审议" },
+  "forecast-consensus": { label: "共识裁决智能体", role: "共识裁决" },
+  "opportunity-synthesizer": { label: "机会聚合器", role: "机会归纳" },
+  "local-competitor-store": { label: "本地竞品资料库", role: "竞品证据" },
+  "competitor-analysis": { label: "竞品分析师", role: "竞争情报" },
+  "current-product-auditor": { label: "当前产品审计智能体", role: "创新门槛审查" },
+  "candidate-novelty-auditor": { label: "候选创新查重智能体", role: "创新门槛审查" },
+  "portfolio-diversity-auditor": { label: "候选组合去重智能体", role: "组合多样性审查" },
+  "product-architect": { label: "产品架构师", role: "产品架构" },
+  "reviewer-innovation": { label: "创新性评审", role: "独立盲评" },
+  "reviewer-user_value": { label: "用户价值评审", role: "独立盲评" },
+  "reviewer-business_value": { label: "商业价值评审", role: "独立盲评" },
+  "reviewer-cost_effectiveness": { label: "性价比评审", role: "独立盲评" },
+  "reviewer-feasibility": { label: "可行性评审", role: "独立盲评" },
+  "reviewer-eufy_synergy": { label: "eufy 协同性评审", role: "独立盲评" },
+  "product-definition": { label: "产品定义智能体", role: "产品定义" },
+  "blind-review-panel": { label: "盲评委员会", role: "评审委员会" },
+  "futures-panel": { label: "未来预测委员会", role: "未来预测" },
 };
 
 export function getAgentLabel(agent: string | null | undefined): string {
@@ -47,8 +47,8 @@ export function getAgentLabel(agent: string | null | undefined): string {
 }
 
 export function getAgentRole(agent: string | null | undefined): string {
-  if (!agent) return "Orchestrator";
-  return AGENT_LABELS[agent]?.role ?? "Agent";
+  if (!agent) return "系统编排";
+  return AGENT_LABELS[agent]?.role ?? "智能体";
 }
 
 /** The four forecasting lenses in canonical order (matches backend). */

@@ -42,16 +42,6 @@ REGION_GROUPS = {
 TOPIC_ALIASES = {
     "apartment": {"apartment", "flat", "公寓", "高层", "入户"},
     "detached_home": {"detached", "suburban", "yard", "garage", "独栋", "车库", "庭院"},
-    "camera_free": {
-        "camera-free",
-        "without camera",
-        "no camera",
-        "非摄像头",
-        "不用摄像头",
-        "不使用室内摄像头",
-        "避免室内摄像头",
-        "不要摄像头",
-    },
     "privacy": {"privacy", "consent", "retention", "隐私", "同意", "人脸"},
     "eldercare": {"elder", "senior", "aging", "老人", "老年", "养老"},
     "child_safety": {"child", "baby", "children", "儿童", "孩子", "婴儿"},

@@ -35,7 +35,7 @@ export function DefinitionReadinessPanel({ product, onAskRecommended }: Props) {
   function onConfirm() {
     confirm.mutate(undefined, {
       onSuccess: () =>
-        toast.success("产品定义已确认", "状态更新为 Validation Ready，可进入后续验证阶段。"),
+        toast.success("产品定义已确认", "状态已更新为验证准备完成，可进入后续验证阶段。"),
       onError: (error) => {
         toast.error("暂无法确认", error.detail);
         void readiness.refetch();
@@ -155,7 +155,7 @@ export function DefinitionReadinessPanel({ product, onAskRecommended }: Props) {
           </div>
           <span className="muted" style={{ fontSize: "var(--text-sm)" }}>
             {isValidationReady
-              ? "验证实验室对当前 ProductSpec 版本进行预验证 / 模拟，不代表真实硬件或真实用户测试。"
+              ? "验证实验室对当前产品定义版本进行预验证 / 模拟，不代表真实硬件或真实用户测试。"
               : lab.description}
           </span>
         </div>

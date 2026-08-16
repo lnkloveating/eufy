@@ -25,7 +25,7 @@ export function ResearchHomeAlerts({
           <div className="alert-body">
             <span className="alert-title">LLM 未配置</span>
             <span>
-              后端未检测到 LLM API Key。多 Agent 研究依赖 LLM，请在后端环境变量中配置后再开始。前端不会保存或读取任何
+              后端未检测到大语言模型 API 密钥。多智能体研究依赖模型能力，请在后端环境变量中配置后再开始。前端不会保存或读取任何
               API Key。
             </span>
           </div>

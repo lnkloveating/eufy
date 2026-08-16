@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -15,6 +15,11 @@ import { useProduct, useProductRevisions } from "../../lib/queries";
 import { formatDateTime } from "../../lib/formatters";
 import { rememberRun } from "../../lib/recent";
 import { DEFINITION_STATUS_META } from "../../lib/productWorkbench";
+import {
+  INNOVATION_VECTOR_LABELS,
+  localizeProductSpecForDisplay,
+  localizeSeverity,
+} from "../../lib/displayLocalization";
 import { ApiError } from "../../lib/api/client";
 import { EmptyState } from "../../components/EmptyState/EmptyState";
 import { ErrorState } from "../../components/ErrorState/ErrorState";
@@ -80,7 +85,7 @@ const TOC_GROUPS: readonly TocGroup[] = [
     label: "工作台",
     page: "workbench",
     items: [
-      { label: "产品定义 Copilot", page: "workbench", anchor: "sec-copilot" },
+      { label: "产品定义审查助手", page: "workbench", anchor: "sec-copilot" },
       { label: "确认准备度", page: "workbench", anchor: "sec-readiness" },
     ],
   },
@@ -135,7 +140,8 @@ export function ProductSpecPage() {
   return <ProductSpecView spec={product.data} />;
 }
 
-function ProductSpecView({ spec }: { spec: ProductSpec }) {
+function ProductSpecView({ spec: sourceSpec }: { spec: ProductSpec }) {
+  const spec = useMemo(() => localizeProductSpecForDisplay(sourceSpec), [sourceSpec]);
   const [draft, setDraft] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activePage, setActivePage] = useState<SpecPageKey>("overview");
@@ -235,7 +241,7 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
                 <div className="alert alert-info" role="note">
                   <Target size={18} className="alert-icon" aria-hidden="true" />
                   <div className="alert-body">
-                    <span className="alert-title">人工选择理由 Human selection reason</span>
+                    <span className="alert-title">人工选择理由</span>
                     <span>{spec.human_selection_reason}</span>
                   </div>
                 </div>
@@ -287,7 +293,15 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
                 subtitle="把今天已有的替代方案和真正新增的能力并列摆出来。"
               >
                 <div className="deflist">
-                  <Def label="创新探索向量" value={spec.capability_delta?.innovation_vector ?? "—"} />
+                  <Def
+                    label="创新探索向量"
+                    value={
+                      spec.capability_delta
+                        ? INNOVATION_VECTOR_LABELS[spec.capability_delta.innovation_vector] ??
+                          spec.capability_delta.innovation_vector
+                        : "—"
+                    }
+                  />
                   <Def
                     label="为什么今天还没有"
                     value={spec.capability_delta?.why_not_available_today ?? "—"}
@@ -429,7 +443,7 @@ function ProductSpecView({ spec }: { spec: ProductSpec }) {
                     <Bullets items={spec.key_assumptions} />
                   </div>
                   <div className="stack stack-2">
-                    <span className="opp-section-label">Kill Criteria</span>
+                    <span className="opp-section-label">淘汰标准</span>
                     <Bullets items={spec.kill_criteria} />
                   </div>
                 </div>
@@ -577,7 +591,9 @@ function RiskCard({ risk }: { risk: RiskItem }) {
       <div className="row between wrap row-gap-2" style={{ alignItems: "flex-start" }}>
         <div className="row row-gap-2">
           <span className="chip chip-outline">{risk.category}</span>
-          <span className={`badge ${severityClass(risk.severity)}`}>{risk.severity}</span>
+          <span className={`badge ${severityClass(risk.severity)}`}>
+            {localizeSeverity(risk.severity)}
+          </span>
         </div>
       </div>
       <p style={{ margin: "10px 0 8px", color: "var(--ink-800)" }}>{risk.risk}</p>

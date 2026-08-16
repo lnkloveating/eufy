@@ -167,8 +167,8 @@ export function AppShell() {
                 {health.isLoading
                   ? "Connecting backend..."
                   : backendOnline
-                    ? "Backend online"
-                    : "Backend offline"}
+                    ? "后端服务在线"
+                    : "后端服务离线"}
               </span>
             </div>
 
@@ -176,7 +176,7 @@ export function AppShell() {
               <div className="nav-health">
                 <span className={clsx("dot", llmConfigured ? "dot-ok" : "dot-warn")} />
                 <span className="nav-foot-label">
-                  {llmConfigured ? "LLM configured" : "LLM missing"}
+                  {llmConfigured ? "大语言模型已配置" : "大语言模型未配置"}
                 </span>
               </div>
             )}

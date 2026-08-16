@@ -142,7 +142,6 @@ async def forecast_options() -> dict[str, object]:
             "privacy_preferences": [
                 "优先端侧 AI",
                 "优先本地存储",
-                "避免室内摄像头",
                 "敏感数据不出户",
                 "允许可撤回的云端增强",
             ],

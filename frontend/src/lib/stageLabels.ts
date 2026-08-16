@@ -9,10 +9,10 @@ export interface StageDescriptor {
 
 /** Ordered pipeline stages for a healthy run (excludes the `failed` stage). */
 export const STAGE_ORDER: StageDescriptor[] = [
-  { key: "queued", label: "等待启动", hint: "任务已创建，准备编排 Agent" },
+  { key: "queued", label: "等待启动", hint: "任务已创建，准备编排智能体" },
   { key: "evidence_selection", label: "本地证据选择", hint: "从本地证据库检索相关证据" },
-  { key: "future_forecasting", label: "多视角未来预测", hint: "四个视角 Agent 并行分析" },
-  { key: "forecast_deliberation", label: "Agent 交叉质疑", hint: "四个视角相互审核并修正观点" },
+  { key: "future_forecasting", label: "多视角未来预测", hint: "四个视角智能体并行分析" },
+  { key: "forecast_deliberation", label: "智能体交叉质疑", hint: "四个视角相互审核并修正观点" },
   { key: "consensus_formation", label: "共识与分歧", hint: "裁决共识并保留少数意见" },
   { key: "opportunity_synthesis", label: "未来机会聚合", hint: "合并去重形成机会图谱" },
   { key: "competitor_analysis", label: "竞品空白分析", hint: "对照竞品能力，识别可验证空白" },

@@ -84,7 +84,7 @@ export const CATEGORY_META: Record<QuestionCategory, string> = {
 export const DEFINITION_STATUS_META: Record<DefinitionStatus, Meta> = {
   draft: { label: "草稿 Draft", badge: "badge-pending" },
   under_review: { label: "审查中 Under Review", badge: "badge-warn" },
-  validation_ready: { label: "验证准备完成 Validation Ready", badge: "badge-completed" },
+  validation_ready: { label: "验证准备完成", badge: "badge-completed" },
 };
 
 /** Human labels for the actions a user may take on a suggested change. */
@@ -165,7 +165,7 @@ export function validationLabStatus(status: DefinitionStatus | undefined): Valid
   }
   return {
     title: "完成产品定义后可进入验证阶段",
-    description: "当前阶段仅生成到标准 ProductSpec，不产生任何验证结果。",
+    description: "当前阶段仅生成标准产品定义，不产生任何验证结果。",
   };
 }
 

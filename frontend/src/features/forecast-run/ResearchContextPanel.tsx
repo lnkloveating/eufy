@@ -45,7 +45,7 @@ export function ResearchContextPanel({ request }: { request: ForecastRequest }) 
         <div className="row row-gap-3">
           <ClipboardCheck size={19} style={{ color: "var(--accent)" }} aria-hidden="true" />
           <div className="stack stack-micro">
-            <span className="eyebrow">Research Brief · 输入追溯</span>
+            <span className="eyebrow">研究任务 · 输入追溯</span>
             <strong>{request.question}</strong>
           </div>
         </div>
@@ -64,7 +64,7 @@ export function ResearchContextPanel({ request }: { request: ForecastRequest }) 
           <div className="stack stack-micro">
             <strong>结构化研究上下文</strong>
             <span className="subtle" style={{ fontSize: "var(--text-sm)" }}>
-              下列内容参与了 RAG 取证和所有 Agent 分析；未出现的字段按“未知 / 开放探索”处理。
+              下列内容参与了检索增强取证和所有智能体分析；未出现的字段按“未知 / 开放探索”处理。
             </span>
           </div>
         </div>
@@ -78,7 +78,7 @@ export function ResearchContextPanel({ request }: { request: ForecastRequest }) 
             ))}
           </div>
         ) : (
-          <div className="empty-inline">本次研究未设置详细上下文，Agent 保持开放探索。</div>
+          <div className="empty-inline">本次研究未设置详细上下文，智能体保持开放探索。</div>
         )}
       </div>
     </div>

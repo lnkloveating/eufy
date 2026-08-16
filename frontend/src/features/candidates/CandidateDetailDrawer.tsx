@@ -97,7 +97,7 @@ export function CandidateDetailDrawer({
         {candidate.capability_delta && (
           <div className="card card-pad stack stack-3">
             <span className="opp-section-label">
-              <Sparkles size={13} aria-hidden="true" /> 未来能力增量 Capability Delta
+              <Sparkles size={13} aria-hidden="true" /> 未来能力增量
             </span>
             {novelty && (
               <div className="row wrap row-gap-2">
@@ -123,7 +123,7 @@ export function CandidateDetailDrawer({
             candidate.strategy_alignment.tradeoffs.length > 0) && (
             <div className="card card-pad stack stack-3">
               <span className="opp-section-label">
-                <Compass size={13} aria-hidden="true" /> 策略取向 Strategy Alignment
+                <Compass size={13} aria-hidden="true" /> 策略取向
               </span>
               {candidate.strategy_alignment.aligned_dimensions.length > 0 && (
                 <div className="row wrap row-gap-2">
@@ -142,7 +142,7 @@ export function CandidateDetailDrawer({
               {candidate.strategy_alignment.tradeoffs.length > 0 && (
                 <div className="stack stack-2">
                   <span className="pro-con-title con">
-                    <AlertTriangle size={12} aria-hidden="true" /> 策略代价 Tradeoffs
+                    <AlertTriangle size={12} aria-hidden="true" /> 策略代价
                   </span>
                   <div className="bullets">
                     {candidate.strategy_alignment.tradeoffs.map((item, index) => (
@@ -158,7 +158,7 @@ export function CandidateDetailDrawer({
 
         <div className="card card-pad stack stack-3">
           <span className="opp-section-label">
-            <Swords size={13} aria-hidden="true" /> 竞争定位 Competitive Positioning
+            <Swords size={13} aria-hidden="true" /> 竞争定位
           </span>
           <TagSection title="最接近的现有方案" items={candidate.competitive_positioning.closest_alternatives} />
           <TagSection title="可借鉴的成熟模式" items={candidate.competitive_positioning.borrowed_patterns} />
@@ -174,7 +174,7 @@ export function CandidateDetailDrawer({
 
         <div className="stack stack-3">
           <span className="opp-section-label">
-            <FlaskConical size={13} aria-hidden="true" /> 关键假设 Key Assumptions
+            <FlaskConical size={13} aria-hidden="true" /> 关键假设
           </span>
           <div className="bullets">
             {candidate.key_assumptions.map((item, index) => (
@@ -185,7 +185,7 @@ export function CandidateDetailDrawer({
 
         <div className="stack stack-3">
           <span className="opp-section-label" style={{ color: "var(--danger-ink)" }}>
-            <AlertTriangle size={13} aria-hidden="true" /> Kill Criteria
+            <AlertTriangle size={13} aria-hidden="true" /> 淘汰标准
           </span>
           <div className="bullets">
             {candidate.kill_criteria.map((item, index) => (
@@ -196,7 +196,7 @@ export function CandidateDetailDrawer({
 
         <div className="stack stack-3">
           <span className="opp-section-label">
-            <Gavel size={13} aria-hidden="true" /> 盲评意见 Reviewer Opinions
+            <Gavel size={13} aria-hidden="true" /> 盲评意见
           </span>
           <div className="card card-pad">
             {reviews.map((review) => (
@@ -252,7 +252,7 @@ export function CandidateDetailDrawer({
           block
           onClick={() => onSelect(ranked)}
         >
-          选择该方向并生成 ProductSpec
+          选择该方向并生成产品定义
         </Button>
       </div>
     </Drawer>
