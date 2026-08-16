@@ -24,6 +24,10 @@ from eufy_security_agents.domain.validation import (
     ValidationProject,
     ValidationProjectStatus,
 )
+from eufy_security_agents.domain.validation_insights import (
+    SurveyResponse,
+    ValidationSurvey,
+)
 
 
 class InMemoryRunRepository:
@@ -42,6 +46,9 @@ class InMemoryRunRepository:
         self.validation_projects: dict[str, ValidationProject] = {}
         self.validation_events: dict[str, list[ValidationEvent]] = {}
         self.validation_finding_index: dict[str, str] = {}
+        self.validation_surveys: dict[str, ValidationSurvey] = {}
+        self.validation_survey_tokens: dict[str, str] = {}
+        self.validation_survey_responses: dict[str, list[SurveyResponse]] = {}
 
     def create_run(self, request: ForecastRequest) -> ForecastRun:
         now = datetime.now(UTC)
@@ -309,6 +316,26 @@ class InMemoryRunRepository:
 
     def get_project_id_for_finding(self, finding_id: str) -> str | None:
         return self.validation_finding_index.get(finding_id)
+
+    def save_validation_survey(self, survey: ValidationSurvey) -> None:
+        self.validation_surveys[survey.project_id] = survey
+        self.validation_survey_tokens[survey.token] = survey.project_id
+        self.validation_survey_responses.setdefault(survey.id, [])
+
+    def get_validation_survey_for_project(
+        self, project_id: str
+    ) -> ValidationSurvey | None:
+        return self.validation_surveys.get(project_id)
+
+    def get_validation_survey_by_token(self, token: str) -> ValidationSurvey | None:
+        project_id = self.validation_survey_tokens.get(token)
+        return self.validation_surveys.get(project_id) if project_id else None
+
+    def save_survey_response(self, response: SurveyResponse) -> None:
+        self.validation_survey_responses.setdefault(response.survey_id, []).append(response)
+
+    def list_survey_responses(self, survey_id: str) -> list[SurveyResponse]:
+        return list(self.validation_survey_responses.get(survey_id, []))
 
     def recover_interrupted_validation_projects(self) -> int:
         interrupted = [

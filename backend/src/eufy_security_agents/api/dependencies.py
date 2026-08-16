@@ -1,8 +1,11 @@
 """Application composition root."""
 
+from eufy_security_agents.application.validation_insights import ValidationInsightsService
+from eufy_security_agents.application.validation_reporting import ValidationReportService
 from eufy_security_agents.core.config import get_settings
 from eufy_security_agents.infrastructure.competitors import LocalCompetitorStore
 from eufy_security_agents.infrastructure.evidence import LocalEvidenceStore
+from eufy_security_agents.infrastructure.feishu import FeishuBitablePublisher
 from eufy_security_agents.infrastructure.llm import OpenAICompatibleLLM
 from eufy_security_agents.infrastructure.repositories import SqlAlchemyRunRepository
 from eufy_security_agents.orchestration import ForecastWorkflow, ValidationWorkflow
@@ -28,3 +31,22 @@ workflow = ForecastWorkflow(
     timeout_seconds=settings.workflow_timeout_seconds,
 )
 validation_workflow = ValidationWorkflow(repository=repository, llm=llm)
+feishu_publisher = FeishuBitablePublisher(
+    app_id=settings.feishu_app_id,
+    app_secret=settings.feishu_app_secret,
+    app_token=settings.feishu_bitable_app_token,
+    wiki_node_token=settings.feishu_wiki_node_token,
+    table_id=settings.feishu_bitable_table_id,
+    table_url=settings.feishu_bitable_url,
+    api_base_url=settings.feishu_api_base_url,
+    timeout_seconds=settings.feishu_timeout_seconds,
+)
+validation_report_service = ValidationReportService(
+    repository=repository,
+    publisher=feishu_publisher,
+    public_app_url=settings.public_app_url,
+)
+validation_insights_service = ValidationInsightsService(
+    repository=repository,
+    public_app_url=settings.public_app_url,
+)

@@ -16,6 +16,8 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  ExternalLink,
+  FileSpreadsheet,
   FlaskConical,
   Lock,
   Pause,
@@ -44,6 +46,7 @@ import {
   useProduct,
   useRunValidationProject,
   useSendBackFinding,
+  useSyncValidationReport,
   useValidationEvents,
   useValidationProject,
 } from "../../lib/queries";
@@ -63,6 +66,7 @@ import { ErrorState } from "../../components/ErrorState/ErrorState";
 import { Skeleton, SkeletonText } from "../../components/LoadingSkeleton/LoadingSkeleton";
 import { Button } from "../../components/ui/Button";
 import { useToast } from "../../components/ui/Toast";
+import { ValidationInsightsPanel } from "./ValidationInsightsPanel";
 
 // The 3D digital twin pulls in three.js / react-three-fiber (~1MB). Lazy-load it
 // so that heavy chunk is fetched only when a validation project is opened, not
@@ -236,6 +240,7 @@ function ValidationLabContent({
   );
   const runMutation = useRunValidationProject(productId, project.id);
   const sendBack = useSendBackFinding(productId, project.id);
+  const syncToFeishu = useSyncValidationReport();
   const statusMeta = PROJECT_STATUS_META[project.status];
   const overall = VERDICT_META[project.overall_verdict];
   const allFindings = useMemo(
@@ -256,6 +261,17 @@ function ValidationLabContent({
       onSuccess: (response) =>
         toast.success("已发送回产品定义", response.message),
       onError: (error) => toast.error("发送失败", error.detail),
+    });
+  }
+
+  function onSyncToFeishu() {
+    syncToFeishu.mutate(project.id, {
+      onSuccess: (response) =>
+        toast.success(
+          "已同步到飞书",
+          `已写入 ${response.records_created} 条研究结论到“${response.table_name}”。`,
+        ),
+      onError: (error) => toast.error("飞书同步失败", error.detail),
     });
   }
 
@@ -368,6 +384,16 @@ function ValidationLabContent({
         </div>
       )}
 
+      <Section
+        title="研究指标与真实用户调查"
+        subtitle="用指标卡和图表解释模拟结论；用户、商业与隐私感知类缺口可生成匿名调查，提交结果会自动回流。"
+      >
+        <ValidationInsightsPanel
+          projectId={project.id}
+          completed={project.status === "completed"}
+        />
+      </Section>
+
       {/* B. Hypothesis matrix */}
       <Section title="验证假设矩阵" subtitle="每条假设一个实验，展示类型、状态、模拟裁决与证据来源。">
         <HypothesisMatrix experiments={project.experiments} />
@@ -425,6 +451,65 @@ function ValidationLabContent({
             </Link>
           </div>
         )}
+      </Section>
+
+      <Section
+        title="同步调研报告到飞书"
+        subtitle="每个产品使用独立明细表，同时更新研究总览的核心指标、调查样本和链接。"
+      >
+        <div className="row between wrap row-gap-3" style={{ alignItems: "center" }}>
+          <div className="stack stack-2" style={{ minWidth: 0 }}>
+              <strong>{displayProduct.name} 产品研究报告</strong>
+              <span className="muted" style={{ fontSize: "var(--text-sm)" }}>
+                同一产品重复同步时复用专属数据表，不会与其他产品的调查结果混在一起。
+              </span>
+            {syncToFeishu.data && (
+              <div className="row row-gap-2 wrap" aria-live="polite">
+                <span className="badge badge-completed">
+                  已同步 {syncToFeishu.data.records_created} 条
+                </span>
+                {Object.entries(syncToFeishu.data.category_counts).map(([label, count]) => (
+                  <span className="chip chip-outline" key={label}>
+                    {label} {count}
+                  </span>
+                ))}
+                {syncToFeishu.data.table_url && (
+                  <a
+                    className="row row-gap-1 spec-back-link"
+                    href={syncToFeishu.data.table_url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    打开飞书表格 <ExternalLink size={14} aria-hidden="true" />
+                  </a>
+                )}
+                {syncToFeishu.data.overview_table_url && (
+                  <a
+                    className="row row-gap-1 spec-back-link"
+                    href={syncToFeishu.data.overview_table_url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    打开研究总览 <ExternalLink size={14} aria-hidden="true" />
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+          <Button
+            variant="dark"
+            loading={syncToFeishu.isPending}
+            disabled={project.status !== "completed"}
+            onClick={onSyncToFeishu}
+            iconStart={<FileSpreadsheet size={16} aria-hidden="true" />}
+            >
+              {syncToFeishu.isPending
+                ? "正在创建产品专属表…"
+                : project.status === "completed"
+                  ? "同步到飞书"
+                  : "完成预验证后可同步"}
+            </Button>
+        </div>
       </Section>
     </div>
   );

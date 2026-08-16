@@ -1037,3 +1037,108 @@ export interface SendBackResponse {
   suggestion_id: string;
   message: string;
 }
+
+export interface FeishuSyncResult {
+  project_id: string;
+  table_id: string;
+  table_name: string;
+  records_created: number;
+  category_counts: Record<string, number>;
+  table_url: string | null;
+  overview_table_url: string | null;
+  synced_at: string;
+}
+
+export type SurveyQuestionType =
+  | "single_choice"
+  | "multiple_choice"
+  | "rating"
+  | "long_text";
+
+export type SurveyStatus = "open" | "closed";
+export type SurveySampleStatus =
+  | "no_responses"
+  | "collecting"
+  | "early_signal"
+  | "directional";
+
+export type SurveyAnswerValue = string | number | string[];
+
+export interface SurveyQuestion {
+  id: string;
+  prompt: string;
+  question_type: SurveyQuestionType;
+  required: boolean;
+  options: string[];
+  rating_min: number;
+  rating_max: number;
+  linked_experiment_id: string | null;
+  evidence_boundary: string;
+}
+
+export interface ValidationSurvey {
+  id: string;
+  token: string;
+  project_id: string;
+  product_id: string;
+  product_name: string;
+  title: string;
+  description: string;
+  status: SurveyStatus;
+  questions: SurveyQuestion[];
+  linked_experiment_ids: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SurveyAccess {
+  survey: ValidationSurvey;
+  public_url: string;
+}
+
+export interface SurveySubmissionRequest {
+  answers: Record<string, SurveyAnswerValue>;
+}
+
+export interface SurveySubmissionResult {
+  response_id: string;
+  total_responses: number;
+  sample_status: SurveySampleStatus;
+  sample_status_label: string;
+  message: string;
+}
+
+export interface SurveyQuestionResult {
+  question_id: string;
+  prompt: string;
+  question_type: SurveyQuestionType;
+  response_count: number;
+  option_counts: Record<string, number>;
+  average_rating: number | null;
+  text_samples: string[];
+  linked_experiment_id: string | null;
+}
+
+export interface SurveyResults {
+  survey_id: string;
+  project_id: string;
+  total_responses: number;
+  sample_status: SurveySampleStatus;
+  sample_status_label: string;
+  questions: SurveyQuestionResult[];
+  disclaimer: string;
+}
+
+export interface ValidationVisualSummary {
+  project_id: string;
+  total_experiments: number;
+  conclusion_counts: Record<string, number>;
+  priority_counts: Record<string, number>;
+  simulation_support_rate: number;
+  high_risk_count: number;
+  survey_eligible_experiments: number;
+  real_experiment_tasks: number;
+  survey_response_count: number;
+  survey_sample_status: SurveySampleStatus;
+  generated_at: string;
+}

@@ -8,6 +8,7 @@ import type {
   ForecastRunListResponse,
   ForecastResult,
   ForecastRun,
+  FeishuSyncResult,
   HealthResponse,
   IssueDismissRequest,
   KnowledgeCoverage,
@@ -21,10 +22,15 @@ import type {
   RunProductDefinitionState,
   RetrievalPreview,
   SendBackResponse,
+  SurveyAccess,
+  SurveyResults,
+  SurveySubmissionRequest,
+  SurveySubmissionResult,
   SuggestionDismissRequest,
   ValidationEvent,
   ValidationProject,
   ValidationProjectCreateRequest,
+  ValidationVisualSummary,
 } from "../../types/api";
 import { ApiError, request } from "./client";
 
@@ -269,5 +275,68 @@ export function sendBackFinding(findingId: string): Promise<SendBackResponse> {
   return request<SendBackResponse>(
     `/validation-findings/${encodeURIComponent(findingId)}/send-back`,
     { method: "POST" },
+  );
+}
+
+export function syncValidationReportToFeishu(
+  projectId: string,
+): Promise<FeishuSyncResult> {
+  return request<FeishuSyncResult>(
+    `/validation-projects/${encodeURIComponent(projectId)}/feishu-sync`,
+    { method: "POST" },
+  );
+}
+
+export function getValidationVisualSummary(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<ValidationVisualSummary> {
+  return request<ValidationVisualSummary>(
+    `/validation-projects/${encodeURIComponent(projectId)}/visual-summary`,
+    { signal },
+  );
+}
+
+export function createValidationSurvey(projectId: string): Promise<SurveyAccess> {
+  return request<SurveyAccess>(
+    `/validation-projects/${encodeURIComponent(projectId)}/survey`,
+    { method: "POST" },
+  );
+}
+
+export function getValidationSurvey(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<SurveyAccess> {
+  return request<SurveyAccess>(
+    `/validation-projects/${encodeURIComponent(projectId)}/survey`,
+    { signal },
+  );
+}
+
+export function getValidationSurveyResults(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<SurveyResults> {
+  return request<SurveyResults>(
+    `/validation-projects/${encodeURIComponent(projectId)}/survey-results`,
+    { signal },
+  );
+}
+
+export function getPublicSurvey(
+  token: string,
+  signal?: AbortSignal,
+): Promise<SurveyAccess> {
+  return request<SurveyAccess>(`/surveys/${encodeURIComponent(token)}`, { signal });
+}
+
+export function submitSurveyResponse(
+  token: string,
+  body: SurveySubmissionRequest,
+): Promise<SurveySubmissionResult> {
+  return request<SurveySubmissionResult>(
+    `/surveys/${encodeURIComponent(token)}/responses`,
+    { method: "POST", body },
   );
 }

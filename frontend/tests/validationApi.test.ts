@@ -2,8 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createValidationProject,
+  createValidationSurvey,
+  getValidationSurveyResults,
+  getValidationVisualSummary,
   runValidationProject,
   sendBackFinding,
+  syncValidationReportToFeishu,
+  submitSurveyResponse,
 } from "../src/lib/api/forecastApi";
 
 interface Recorded {
@@ -65,6 +70,35 @@ describe("validation API contract", () => {
     expect(calls[0]?.url).toBe(
       "http://localhost:8000/api/v1/validation-projects/vproj-1/run",
     );
+  });
+
+  it("syncs a completed project through the backend Feishu endpoint", async () => {
+    await syncValidationReportToFeishu("vproj-1");
+    expect(calls[0]?.method).toBe("POST");
+    expect(calls[0]?.url).toBe(
+      "http://localhost:8000/api/v1/validation-projects/vproj-1/feishu-sync",
+    );
+  });
+
+  it("uses the project-scoped visualization and survey endpoints", async () => {
+    await getValidationVisualSummary("vproj-1");
+    await createValidationSurvey("vproj-1");
+    await getValidationSurveyResults("vproj-1");
+
+    expect(calls.map((call) => [call.method, call.url])).toEqual([
+      ["GET", "http://localhost:8000/api/v1/validation-projects/vproj-1/visual-summary"],
+      ["POST", "http://localhost:8000/api/v1/validation-projects/vproj-1/survey"],
+      ["GET", "http://localhost:8000/api/v1/validation-projects/vproj-1/survey-results"],
+    ]);
+  });
+
+  it("submits public survey answers through an encoded token", async () => {
+    await submitSurveyResponse("token/unsafe", { answers: { rating: 5 } });
+    expect(calls[0]?.method).toBe("POST");
+    expect(calls[0]?.url).toBe(
+      "http://localhost:8000/api/v1/surveys/token%2Funsafe/responses",
+    );
+    expect(JSON.parse(calls[0]?.body ?? "{}")).toEqual({ answers: { rating: 5 } });
   });
 
   it("encodes ids so a hostile id cannot break the path", async () => {

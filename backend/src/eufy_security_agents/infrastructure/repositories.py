@@ -40,6 +40,10 @@ from eufy_security_agents.domain.validation import (
     ValidationProject,
     ValidationProjectStatus,
 )
+from eufy_security_agents.domain.validation_insights import (
+    SurveyResponse,
+    ValidationSurvey,
+)
 
 
 class Base(DeclarativeBase):
@@ -198,6 +202,26 @@ class ValidationFindingRow(Base):
     project_id: Mapped[str] = mapped_column(String(64), index=True)
     product_id: Mapped[str] = mapped_column(String(64), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ValidationSurveyRow(Base):
+    __tablename__ = "validation_surveys"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    token: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    project_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    payload_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ValidationSurveyResponseRow(Base):
+    __tablename__ = "validation_survey_responses"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    survey_id: Mapped[str] = mapped_column(String(64), index=True)
+    payload_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
 def normalize_database_url(database_url: str) -> str:
@@ -802,6 +826,63 @@ class SqlAlchemyRunRepository:
         with self._sessions() as session:
             row = session.get(ValidationFindingRow, finding_id)
             return row.project_id if row else None
+
+    def save_validation_survey(self, survey: ValidationSurvey) -> None:
+        with self._sessions.begin() as session:
+            existing = session.get(ValidationSurveyRow, survey.id)
+            if existing is None:
+                session.add(
+                    ValidationSurveyRow(
+                        id=survey.id,
+                        token=survey.token,
+                        project_id=survey.project_id,
+                        payload_json=survey.model_dump_json(),
+                        created_at=survey.created_at,
+                        updated_at=survey.updated_at,
+                    )
+                )
+            else:
+                existing.token = survey.token
+                existing.project_id = survey.project_id
+                existing.payload_json = survey.model_dump_json()
+                existing.updated_at = survey.updated_at
+
+    def get_validation_survey_for_project(
+        self, project_id: str
+    ) -> ValidationSurvey | None:
+        statement = select(ValidationSurveyRow).where(
+            ValidationSurveyRow.project_id == project_id
+        )
+        with self._sessions() as session:
+            row = session.scalars(statement).first()
+        return ValidationSurvey.model_validate_json(row.payload_json) if row else None
+
+    def get_validation_survey_by_token(self, token: str) -> ValidationSurvey | None:
+        statement = select(ValidationSurveyRow).where(ValidationSurveyRow.token == token)
+        with self._sessions() as session:
+            row = session.scalars(statement).first()
+        return ValidationSurvey.model_validate_json(row.payload_json) if row else None
+
+    def save_survey_response(self, response: SurveyResponse) -> None:
+        with self._sessions.begin() as session:
+            session.add(
+                ValidationSurveyResponseRow(
+                    id=response.id,
+                    survey_id=response.survey_id,
+                    payload_json=response.model_dump_json(),
+                    created_at=response.created_at,
+                )
+            )
+
+    def list_survey_responses(self, survey_id: str) -> list[SurveyResponse]:
+        statement = (
+            select(ValidationSurveyResponseRow)
+            .where(ValidationSurveyResponseRow.survey_id == survey_id)
+            .order_by(ValidationSurveyResponseRow.created_at)
+        )
+        with self._sessions() as session:
+            rows = session.scalars(statement).all()
+        return [SurveyResponse.model_validate_json(row.payload_json) for row in rows]
 
     def recover_interrupted_validation_projects(self) -> int:
         with self._sessions.begin() as session:

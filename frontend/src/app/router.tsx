@@ -8,6 +8,7 @@ import { RunWorkbenchPage } from "../features/forecast-run/RunWorkbenchPage";
 import { ProductSpecPage } from "../features/product-spec/ProductSpecPage";
 import { ProductDefinitionStatePage } from "../features/product-spec/ProductDefinitionStatePage";
 import { ValidationLabPage } from "../features/validation/ValidationLabPage";
+import { PublicSurveyPage } from "../features/validation/PublicSurveyPage";
 
 function NotFoundPage() {
   return (
@@ -27,6 +28,7 @@ function NotFoundPage() {
 }
 
 export const router = createBrowserRouter([
+  { path: "survey/:token", element: <PublicSurveyPage /> },
   {
     element: <AppShell />,
     children: [

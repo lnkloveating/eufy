@@ -94,5 +94,20 @@ def test_validation_endpoints_reject_unknown_ids() -> None:
     assert client.post("/api/v1/validation-projects/does-not-exist/run").status_code == 404
     assert client.get("/api/v1/validation-projects/does-not-exist/events").status_code == 404
     assert (
+        client.get(
+            "/api/v1/validation-projects/does-not-exist/visual-summary"
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post("/api/v1/validation-projects/does-not-exist/survey").status_code
+        == 404
+    )
+    assert client.get("/api/v1/surveys/does-not-exist").status_code == 404
+    assert (
+        client.post("/api/v1/validation-projects/does-not-exist/feishu-sync").status_code
+        == 404
+    )
+    assert (
         client.post("/api/v1/validation-findings/does-not-exist/send-back").status_code == 404
     )

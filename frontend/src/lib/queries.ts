@@ -13,6 +13,7 @@ import type {
   ForecastRunListResponse,
   ForecastResult,
   ForecastRun,
+  FeishuSyncResult,
   HealthResponse,
   Artifact,
   IssueDismissRequest,
@@ -26,9 +27,14 @@ import type {
   ProductSpec,
   RunProductDefinitionState,
   SendBackResponse,
+  SurveyAccess,
+  SurveyResults,
+  SurveySubmissionRequest,
+  SurveySubmissionResult,
   SuggestionDismissRequest,
   ValidationEvent,
   ValidationProject,
+  ValidationVisualSummary,
 } from "../types/api";
 import { ApiError } from "./api/client";
 import {
@@ -38,6 +44,7 @@ import {
   createForecastRun,
   createSelection,
   createValidationProject,
+  createValidationSurvey,
   dismissDesignIssues,
   dismissSuggestions,
   generateIssueProposal,
@@ -55,9 +62,15 @@ import {
   getRunProductDefinitionState,
   getValidationEvents,
   getValidationProject,
+  getValidationSurvey,
+  getValidationSurveyResults,
+  getValidationVisualSummary,
+  getPublicSurvey,
   listForecastRuns,
   runValidationProject,
   sendBackFinding,
+  syncValidationReportToFeishu,
+  submitSurveyResponse,
 } from "./api/forecastApi";
 
 export const queryKeys = {
@@ -77,6 +90,12 @@ export const queryKeys = {
     ["validation-project", "latest", productId] as const,
   validationProject: (projectId: string) => ["validation-project", projectId] as const,
   validationEvents: (projectId: string) => ["validation-events", projectId] as const,
+  validationVisualSummary: (projectId: string) =>
+    ["validation-visual-summary", projectId] as const,
+  validationSurvey: (projectId: string) => ["validation-survey", projectId] as const,
+  validationSurveyResults: (projectId: string) =>
+    ["validation-survey-results", projectId] as const,
+  publicSurvey: (token: string) => ["public-survey", token] as const,
 };
 
 /** Health poll — refreshed periodically so connection status stays live. */
@@ -449,5 +468,79 @@ export function useSendBackFinding(productId: string, projectId: string) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.productQuestions(productId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.productReadiness(productId) });
     },
+  });
+}
+
+export function useSyncValidationReport() {
+  return useMutation<FeishuSyncResult, ApiError, string>({
+    mutationFn: (projectId) => syncValidationReportToFeishu(projectId),
+  });
+}
+
+export function useValidationVisualSummary(
+  projectId: string | undefined,
+  enabled = true,
+): UseQueryResult<ValidationVisualSummary, ApiError> {
+  return useQuery<ValidationVisualSummary, ApiError>({
+    queryKey: queryKeys.validationVisualSummary(projectId ?? "unknown"),
+    queryFn: ({ signal }) => getValidationVisualSummary(projectId as string, signal),
+    enabled: Boolean(projectId) && enabled,
+    refetchInterval: enabled ? 5_000 : false,
+    retry: 1,
+  });
+}
+
+export function useValidationSurvey(
+  projectId: string | undefined,
+  enabled = true,
+): UseQueryResult<SurveyAccess, ApiError> {
+  return useQuery<SurveyAccess, ApiError>({
+    queryKey: queryKeys.validationSurvey(projectId ?? "unknown"),
+    queryFn: ({ signal }) => getValidationSurvey(projectId as string, signal),
+    enabled: Boolean(projectId) && enabled,
+    retry: (failureCount, error) => !error.isNotFound && failureCount < 1,
+  });
+}
+
+export function useCreateValidationSurvey(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<SurveyAccess, ApiError, void>({
+    mutationFn: () => createValidationSurvey(projectId),
+    onSuccess: (access) => {
+      queryClient.setQueryData(queryKeys.validationSurvey(projectId), access);
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.validationVisualSummary(projectId),
+      });
+    },
+  });
+}
+
+export function useValidationSurveyResults(
+  projectId: string | undefined,
+  enabled = true,
+): UseQueryResult<SurveyResults, ApiError> {
+  return useQuery<SurveyResults, ApiError>({
+    queryKey: queryKeys.validationSurveyResults(projectId ?? "unknown"),
+    queryFn: ({ signal }) => getValidationSurveyResults(projectId as string, signal),
+    enabled: Boolean(projectId) && enabled,
+    refetchInterval: enabled ? 5_000 : false,
+    retry: (failureCount, error) => !error.isNotFound && failureCount < 1,
+  });
+}
+
+export function usePublicSurvey(
+  token: string | undefined,
+): UseQueryResult<SurveyAccess, ApiError> {
+  return useQuery<SurveyAccess, ApiError>({
+    queryKey: queryKeys.publicSurvey(token ?? "unknown"),
+    queryFn: ({ signal }) => getPublicSurvey(token as string, signal),
+    enabled: Boolean(token),
+    retry: (failureCount, error) => !error.isNotFound && failureCount < 1,
+  });
+}
+
+export function useSubmitSurveyResponse(token: string) {
+  return useMutation<SurveySubmissionResult, ApiError, SurveySubmissionRequest>({
+    mutationFn: (body) => submitSurveyResponse(token, body),
   });
 }

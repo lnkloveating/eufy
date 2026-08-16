@@ -19,7 +19,9 @@ from .models import (
     RunStatus,
     SuggestionResolution,
 )
+from .reporting import FeishuSyncResult, ValidationResearchReport
 from .validation import ValidationEvent, ValidationProject
+from .validation_insights import SurveyResponse, ValidationSurvey
 
 TModel = TypeVar("TModel", bound=BaseModel)
 
@@ -35,6 +37,10 @@ class StructuredLLM(Protocol):
         response_model: type[TModel],
         temperature: float = 0.4,
     ) -> tuple[TModel, dict[str, int | str | None]]: ...
+
+
+class ValidationReportPublisher(Protocol):
+    async def publish(self, report: ValidationResearchReport) -> FeishuSyncResult: ...
 
 
 class RunRepository(Protocol):
@@ -147,7 +153,23 @@ class ValidationRepository(Protocol):
     def recover_interrupted_validation_projects(self) -> int: ...
 
 
-class FullRepository(RunRepository, ValidationRepository, Protocol):
+class ValidationInsightsRepository(Protocol):
+    def save_validation_survey(self, survey: ValidationSurvey) -> None: ...
+
+    def get_validation_survey_for_project(
+        self, project_id: str
+    ) -> ValidationSurvey | None: ...
+
+    def get_validation_survey_by_token(self, token: str) -> ValidationSurvey | None: ...
+
+    def save_survey_response(self, response: SurveyResponse) -> None: ...
+
+    def list_survey_responses(self, survey_id: str) -> list[SurveyResponse]: ...
+
+
+class FullRepository(
+    RunRepository, ValidationRepository, ValidationInsightsRepository, Protocol
+):
     """Both persistence surfaces, satisfied structurally by the SQLAlchemy repo.
 
     The validation workflow needs a few forecasting-side methods (product and

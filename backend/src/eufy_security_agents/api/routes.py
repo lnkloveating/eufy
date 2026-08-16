@@ -10,6 +10,12 @@ from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 
+from eufy_security_agents.application.validation_insights import (
+    SurveyAnswerError,
+    SurveyClosedError,
+    SurveyNotReadyError,
+)
+from eufy_security_agents.application.validation_reporting import ValidationReportNotReadyError
 from eufy_security_agents.core.config import get_settings
 from eufy_security_agents.domain.models import (
     AgentEvent,
@@ -33,6 +39,7 @@ from eufy_security_agents.domain.models import (
     RunStatus,
     SuggestionDismissRequest,
 )
+from eufy_security_agents.domain.reporting import FeishuSyncResult
 from eufy_security_agents.domain.strategy import strategy_presets
 from eufy_security_agents.domain.validation import (
     SendBackResponse,
@@ -41,6 +48,14 @@ from eufy_security_agents.domain.validation import (
     ValidationProjectCreateRequest,
     ValidationProjectStatus,
 )
+from eufy_security_agents.domain.validation_insights import (
+    SurveyAccess,
+    SurveyResults,
+    SurveySubmissionRequest,
+    SurveySubmissionResult,
+    ValidationVisualSummary,
+)
+from eufy_security_agents.infrastructure.feishu import FeishuAPIError, FeishuConfigurationError
 from eufy_security_agents.orchestration.validation_workflow import ValidationNotReadyError
 from eufy_security_agents.orchestration.workflow import DefinitionNotReadyError
 
@@ -48,6 +63,8 @@ from .dependencies import (
     competitor_store,
     evidence_store,
     repository,
+    validation_insights_service,
+    validation_report_service,
     validation_workflow,
     workflow,
 )
@@ -63,6 +80,11 @@ async def health() -> dict[str, object]:
         "service": settings.app_name,
         "llm_model": settings.llm_model,
         "llm_configured": bool(settings.llm_api_key),
+        "feishu_configured": bool(
+            settings.feishu_app_id
+            and settings.feishu_app_secret
+            and (settings.feishu_bitable_app_token or settings.feishu_wiki_node_token)
+        ),
         "local_evidence_count": len(evidence_store.load()),
         "competitor_evidence_count": len(competitor_store.load()),
         "knowledge_layers": evidence_store.coverage().records_by_layer,
@@ -543,6 +565,109 @@ async def get_validation_project(project_id: str) -> ValidationProject:
         return validation_workflow.get_project(project_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="validation project not found") from exc
+
+
+@router.get(
+    "/validation-projects/{project_id}/visual-summary",
+    response_model=ValidationVisualSummary,
+    tags=["validation"],
+)
+async def get_validation_visual_summary(project_id: str) -> ValidationVisualSummary:
+    try:
+        return validation_insights_service.get_visual_summary(project_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="validation project not found") from exc
+
+
+@router.post(
+    "/validation-projects/{project_id}/survey",
+    response_model=SurveyAccess,
+    tags=["validation"],
+)
+async def create_validation_survey(project_id: str) -> SurveyAccess:
+    try:
+        return validation_insights_service.create_or_get_survey(project_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="validation project not found") from exc
+    except SurveyNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get(
+    "/validation-projects/{project_id}/survey",
+    response_model=SurveyAccess,
+    tags=["validation"],
+)
+async def get_validation_survey(project_id: str) -> SurveyAccess:
+    try:
+        return validation_insights_service.get_survey_for_project(project_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="validation project not found") from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="该项目尚未生成调查问卷") from exc
+
+
+@router.get(
+    "/validation-projects/{project_id}/survey-results",
+    response_model=SurveyResults,
+    tags=["validation"],
+)
+async def get_validation_survey_results(project_id: str) -> SurveyResults:
+    try:
+        return validation_insights_service.get_results_for_project(project_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="validation project not found") from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="该项目尚未生成调查问卷") from exc
+
+
+@router.get(
+    "/surveys/{token}",
+    response_model=SurveyAccess,
+    tags=["surveys"],
+)
+async def get_public_validation_survey(token: str) -> SurveyAccess:
+    try:
+        return validation_insights_service.get_public_survey(token)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="调查问卷不存在") from exc
+
+
+@router.post(
+    "/surveys/{token}/responses",
+    response_model=SurveySubmissionResult,
+    tags=["surveys"],
+)
+async def submit_public_validation_survey(
+    token: str,
+    submission: SurveySubmissionRequest,
+) -> SurveySubmissionResult:
+    try:
+        return validation_insights_service.submit_response(token, submission)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="调查问卷不存在") from exc
+    except SurveyClosedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except SurveyAnswerError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post(
+    "/validation-projects/{project_id}/feishu-sync",
+    response_model=FeishuSyncResult,
+    tags=["validation"],
+)
+async def sync_validation_project_to_feishu(project_id: str) -> FeishuSyncResult:
+    try:
+        return await validation_report_service.sync_to_feishu(project_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="validation project not found") from exc
+    except ValidationReportNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except FeishuConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except FeishuAPIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.post(

@@ -24,10 +24,20 @@ class Settings(BaseSettings):
     llm_max_output_tokens: int = 6_000
     stage_timeout_seconds: float = 75.0
     workflow_timeout_seconds: float = 900.0
+    feishu_app_id: str = ""
+    feishu_app_secret: str = Field(default="", repr=False)
+    feishu_bitable_app_token: str = ""
+    feishu_wiki_node_token: str = ""
+    feishu_bitable_table_id: str = ""
+    feishu_bitable_view_id: str = ""
+    feishu_bitable_url: str = ""
+    feishu_api_base_url: str = "https://open.feishu.cn/open-apis"
+    feishu_timeout_seconds: float = 20.0
+    public_app_url: str = "http://localhost:5173"
     cors_origins: list[str] = ["http://localhost:5173"]
 
     model_config = SettingsConfigDict(
-        env_file=BACKEND_ROOT / ".env",
+        env_file=(BACKEND_ROOT / ".env", BACKEND_ROOT / ".env.feishu"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
