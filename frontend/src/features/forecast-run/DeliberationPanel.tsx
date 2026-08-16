@@ -19,9 +19,14 @@ export function DeliberationPanel({
   consensus: ForecastConsensus | null;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [activeConsensusIndex, setActiveConsensusIndex] = useState(0);
 
   const activeDeliberation =
     deliberations.length > 0 ? deliberations[activeIndex % deliberations.length] : null;
+  const activeConsensusClaim =
+    consensus?.consensus_claims.length
+      ? consensus.consensus_claims[activeConsensusIndex % consensus.consensus_claims.length]
+      : null;
 
   const goPrevious = () => {
     if (deliberations.length <= 1) return;
@@ -33,8 +38,21 @@ export function DeliberationPanel({
     setActiveIndex((current) => (current + 1) % deliberations.length);
   };
 
+  const goPreviousConsensus = () => {
+    if (!consensus || consensus.consensus_claims.length <= 1) return;
+    setActiveConsensusIndex(
+      (current) =>
+        (current - 1 + consensus.consensus_claims.length) % consensus.consensus_claims.length,
+    );
+  };
+
+  const goNextConsensus = () => {
+    if (!consensus || consensus.consensus_claims.length <= 1) return;
+    setActiveConsensusIndex((current) => (current + 1) % consensus.consensus_claims.length);
+  };
+
   if (deliberations.length === 0 && !consensus) {
-    return <div className="card card-pad muted">暂无交叉审核内容。</div>;
+    return <div className="card card-pad muted">暂无交叉审查内容。</div>;
   }
 
   return (
@@ -107,20 +125,56 @@ export function DeliberationPanel({
           <span className="opp-section-label">
             <Scale size={13} /> 共识裁决
           </span>
-          <div className="grid-cards">
-            {consensus.consensus_claims.map((claim, index) => (
-              <div className="card card-pad stack stack-2" key={index}>
+          {activeConsensusClaim && (
+            <article className="card card-pad stack stack-2 deliberation-carousel-card">
+              <div className="row between wrap row-gap-2 deliberation-carousel-head">
+                <div className="row row-gap-2 wrap deliberation-carousel-title" style={{ minWidth: 0 }}>
+                  <strong>共识结论</strong>
+                  {consensus.consensus_claims.length > 1 && (
+                    <span className="chip chip-outline">
+                      {activeConsensusIndex + 1} / {consensus.consensus_claims.length}
+                    </span>
+                  )}
+                </div>
+                <div className="row row-gap-2 deliberation-carousel-actions">
+                  <button
+                    type="button"
+                    className="carousel-arrow"
+                    onClick={goPreviousConsensus}
+                    disabled={consensus.consensus_claims.length <= 1}
+                    aria-label="上一个共识结论"
+                    title="上一个共识结论"
+                  >
+                    <ChevronLeft size={16} aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className="carousel-arrow"
+                    onClick={goNextConsensus}
+                    disabled={consensus.consensus_claims.length <= 1}
+                    aria-label="下一个共识结论"
+                    title="下一个共识结论"
+                  >
+                    <ChevronRight size={16} aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+
+              <div
+                className="deliberation-carousel-body"
+                key={`${activeConsensusIndex}-${activeConsensusClaim.claim}`}
+              >
                 <div className="row between wrap row-gap-2">
                   <CheckCircle2 size={15} style={{ color: "var(--success-ink)" }} />
-                  <span className="chip">{Math.round(claim.confidence * 100)}%</span>
+                  <span className="chip">{Math.round(activeConsensusClaim.confidence * 100)}%</span>
                 </div>
-                <p>{claim.claim}</p>
+                <p>{activeConsensusClaim.claim}</p>
                 <span className="subtle" style={{ fontSize: "var(--text-xs)" }}>
-                  {claim.supporting_lenses.map(getLensLabel).join("、")}
+                  {activeConsensusClaim.supporting_lenses.map(getLensLabel).join("、")}
                 </span>
               </div>
-            ))}
-          </div>
+            </article>
+          )}
 
           {consensus.unresolved_disagreements.length > 0 && (
             <div className="stack stack-2">

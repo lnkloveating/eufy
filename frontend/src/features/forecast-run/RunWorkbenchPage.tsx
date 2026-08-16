@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+﻿import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   Activity,
   AlertTriangle,
-  ArrowLeft,
   CheckCircle2,
   ChevronDown,
   Clock,
@@ -71,7 +70,6 @@ export function resolveWorkspaceTab(
   if (requested === "results") return "analysis";
   return status === "completed" ? "analysis" : "process";
 }
-
 function deriveStage(events: AgentEvent[]): string {
   let stage = "queued";
   for (const event of events) {
@@ -325,11 +323,6 @@ export function RunWorkbenchPage() {
   return (
     <div className="page">
       <div className="stack stack-5">
-        <Link to="/" className="row row-gap-2 muted run-back-link">
-          <ArrowLeft size={15} aria-hidden="true" />
-          返回研究首页
-        </Link>
-
         <section className="card card-pad run-hero">
           <div className="run-hero-top">
             <div className="stack stack-3" style={{ minWidth: 0, flex: 1 }}>
@@ -343,6 +336,15 @@ export function RunWorkbenchPage() {
                 {data.request.regions.map((region) => (
                   <span className="chip chip-outline" key={region}>
                     {region}
+                  </span>
+                ))}
+              </div>
+              <div className="row row-gap-2 wrap">
+                <span className="chip chip-outline">{data.request.target_users.join("、")}</span>
+                <span className="chip chip-outline">{data.request.price_segment ?? "未限定"}</span>
+                {data.request.constraints.map((constraint) => (
+                  <span className="chip chip-accent" key={constraint}>
+                    {constraint}
                   </span>
                 ))}
               </div>
@@ -378,16 +380,9 @@ export function RunWorkbenchPage() {
 
         {workspaceTab === "overview" && (
           <div className="stack stack-5">
+            <ResearchContextPanel request={data.request} />
             {data.status === "completed" && result.data ? (
-              <>
-                <RunCompletionSnapshot
-                  runId={data.id}
-                  result={result.data}
-                  artifacts={artifactList}
-                  events={events}
-                />
-                <ResearchContextPanel request={data.request} />
-              </>
+              null
             ) : (
               <ResearchCenter
                 status={data.status}
@@ -433,19 +428,13 @@ export function RunWorkbenchPage() {
         )}
 
         {workspaceTab === "evidence" && (
-          <div className="run-evidence-layout">
-            <div className="stack stack-5">
-              <ResearchContextPanel request={data.request} />
-            </div>
-
-            <div className="stack stack-5">
-              <RunEvidenceWorkspace
-                status={data.status}
-                error={data.error}
-                result={result}
-                artifacts={artifactList}
-              />
-            </div>
+          <div className="stack stack-5">
+            <RunEvidenceWorkspace
+              status={data.status}
+              error={data.error}
+              result={result}
+              artifacts={artifactList}
+            />
           </div>
         )}
 
@@ -708,6 +697,7 @@ function ProposalDetailsDialog({
             <span className="eyebrow">研究任务 · 输入追溯</span>
             <span className="chip chip-outline">{request.category}</span>
           </div>
+          <span className="opp-section-label">提案摘要</span>
           <strong style={{ fontSize: "var(--text-lg)", lineHeight: 1.35 }}>
             {request.question}
           </strong>
@@ -757,87 +747,6 @@ function MetaItem({ label, value }: { label: string; value: string }) {
     <div className="meta-item">
       <span className="meta-label">{label}</span>
       <span className="meta-value">{value}</span>
-    </div>
-  );
-}
-
-function RunCompletionSnapshot({
-  runId,
-  result,
-  artifacts,
-  events,
-}: {
-  runId: string;
-  result: ForecastResult;
-  artifacts: Artifact[];
-  events: AgentEvent[];
-}) {
-  const metrics = aggregateArtifactMetrics(artifacts);
-
-  return (
-    <div className="stack stack-5">
-      <div className="card card-pad research-summary">
-        <div className="row between wrap row-gap-2" style={{ alignItems: "flex-start" }}>
-          <span className="eyebrow">研究工作台 · 结果摘要</span>
-          <span className="badge badge-completed">
-            <CheckCircle2 size={12} aria-hidden="true" />
-            研究完成
-          </span>
-        </div>
-        <div className="summary-grid">
-          <SummaryStat
-            icon={<Database size={12} aria-hidden="true" />}
-            label="证据"
-            value={`${result.evidence.length} 条`}
-          />
-          <SummaryStat
-            icon={<Swords size={12} aria-hidden="true" />}
-            label="竞品资料"
-            value={`${result.competitor_evidence.length} 条`}
-          />
-          <SummaryStat
-            icon={<Cpu size={12} aria-hidden="true" />}
-            label="完成智能体"
-            value={`${completedAgentCount(events)} 个`}
-          />
-          <SummaryStat
-            icon={<Gauge size={12} aria-hidden="true" />}
-            label="模型总用量"
-            value={metrics.totalTokens.toLocaleString()}
-          />
-          <SummaryStat
-            icon={<Clock size={12} aria-hidden="true" />}
-            label="研究耗时"
-            value={formatDurationMs(metrics.totalDurationMs)}
-          />
-          <SummaryStat
-            icon={<ScrollText size={12} aria-hidden="true" />}
-            label="产品候选"
-            value={`${result.candidates.length} 个`}
-          />
-        </div>
-      </div>
-
-      <div className="alert alert-success" role="status">
-        <CheckCircle2 size={18} className="alert-icon" aria-hidden="true" />
-        <div className="alert-body">
-          <span className="alert-title">研究完成，等待人工选择</span>
-          <span>智能体分析已保留在实时研究中，候选产品已经转移到独立的“产品定义”页面。</span>
-        </div>
-      </div>
-
-      <div className="card card-pad stack stack-3">
-        <span className="opp-section-label">下一步</span>
-        <strong>进入产品定义，对比并选择候选产品</strong>
-        <span className="subtle" style={{ fontSize: "var(--text-sm)" }}>
-          实时研究保留完整分析过程；产品定义负责候选比较、人工选择和最终产品定义。
-        </span>
-        <div>
-          <Link to={`/runs/${encodeURIComponent(runId)}/product-definition`}>
-            <Button variant="primary">进入产品定义并选择</Button>
-          </Link>
-        </div>
-      </div>
     </div>
   );
 }

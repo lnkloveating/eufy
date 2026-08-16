@@ -18,6 +18,7 @@ import { getRecentRun } from "../../lib/recent";
 export function AppShell() {
   const location = useLocation();
   void location.pathname;
+  const isValidationPage = location.pathname.endsWith("/validation");
 
   const health = useHealth();
   const routeRunMatch = location.pathname.match(/^\/runs\/([^/]+)/);
@@ -111,10 +112,7 @@ export function AppShell() {
                 className={({ isActive }) =>
                   clsx(
                     "nav-link",
-                    isActive &&
-                      (location.pathname.startsWith("/products") ||
-                        location.pathname.endsWith("/product-definition")) &&
-                      "is-active",
+                    isActive && !isValidationPage && "is-active",
                   )
                 }
               >
@@ -135,12 +133,7 @@ export function AppShell() {
               <NavLink
                 to={labEntry.path}
                 title={labEntry.reason}
-                className={({ isActive }) =>
-                  clsx(
-                    "nav-link",
-                    isActive && location.pathname.endsWith("/validation") && "is-active",
-                  )
-                }
+                className={({ isActive }) => clsx("nav-link", isActive && isValidationPage && "is-active")}
               >
                 <FlaskConical size={18} aria-hidden="true" />
                 <span className="nav-link-label">验证实验室</span>

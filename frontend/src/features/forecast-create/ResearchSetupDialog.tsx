@@ -110,7 +110,7 @@ export function ResearchSetupDialog({
           >
             {step === 1 ? "继续" : "下一步"}
           </Button>
-        ) : (
+        ) : (          <span className="cta-glow">
           <Button
             variant="primary"
             size="lg"
@@ -120,6 +120,7 @@ export function ResearchSetupDialog({
           >
             {starting ? "正在启动深度研究…" : "确认并开始研究"}
           </Button>
+          </span>
         )}
       </div>
     </div>

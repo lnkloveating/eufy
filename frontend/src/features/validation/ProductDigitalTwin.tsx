@@ -1,4 +1,4 @@
-import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
+﻿import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
 import { ContactShadows, OrbitControls, RoundedBox } from "@react-three/drei";
 import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Group, Mesh, MeshBasicMaterial, PointLight, TorusGeometry } from "three";
@@ -711,7 +711,6 @@ export function ProductDigitalTwin({ spec, product, productName }: Props) {
             {alarm && <span className="badge badge-failed">告警演示</span>}
           </div>
           <div className="vlab-live-section">
-            <span>设备在做什么</span>
             <strong>{step?.title}</strong>
             <p>{step?.description}</p>
           </div>
