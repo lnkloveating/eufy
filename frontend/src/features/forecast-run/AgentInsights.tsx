@@ -25,7 +25,7 @@ export function AgentInsights({ forecasts, evidence }: AgentInsightsProps) {
     return (
       <EmptyState
         icon={<Compass size={24} aria-hidden="true" />}
-        title="暂无 Agent 洞察"
+        title="暂无智能体洞察"
         description="预测完成后，四个视角的结构化分析会显示在这里。"
       />
     );
@@ -67,8 +67,8 @@ export function AgentInsights({ forecasts, evidence }: AgentInsightsProps) {
               className="carousel-arrow"
               onClick={goPrevious}
               disabled={forecasts.length <= 1}
-              aria-label="上一个 Agent"
-              title="上一个 Agent"
+              aria-label="上一个智能体"
+              title="上一个智能体"
             >
               <ChevronLeft size={16} aria-hidden="true" />
             </button>
@@ -77,8 +77,8 @@ export function AgentInsights({ forecasts, evidence }: AgentInsightsProps) {
               className="carousel-arrow"
               onClick={goNext}
               disabled={forecasts.length <= 1}
-              aria-label="下一个 Agent"
-              title="下一个 Agent"
+              aria-label="下一个智能体"
+              title="下一个智能体"
             >
               <ChevronRight size={16} aria-hidden="true" />
             </button>

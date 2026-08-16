@@ -218,7 +218,7 @@ export function validationLabEntry(
   return {
     enabled: false,
     path,
-    reason: "请先完成产品定义（Validation Ready）后再进入验证实验室。",
+    reason: "请先完成产品定义并确认，再进入验证实验室。",
   };
 }
 

@@ -76,7 +76,6 @@ export const EXAMPLE_PROMPTS: ExamplePrompt[] = [
   { id: "us-no-subscription", question: "未来三年美国独栋家庭有哪些不依赖订阅的安防机会？", preset: { regions: ["United States"], target_users: ["独栋住宅家庭"], forecast_horizon_years: 3, constraints: ["不依赖强制订阅"], research_context: { housing_types: ["独栋住宅"], business_preferences: ["不依赖强制订阅"] } } },
   { id: "cn-apartment", question: "中国城市公寓中，AI 原生家庭安防还能解决什么问题？", preset: { regions: ["China"], target_users: ["城市公寓家庭"], forecast_horizon_years: 3, research_context: { housing_types: ["城市公寓"] } } },
   { id: "eu-us-elderly-children", question: "面向欧美有老人和儿童的家庭，eufy 可以预测什么新产品？", preset: { regions: ["United States", "European Union"], target_users: ["有老人或儿童的家庭"], forecast_horizon_years: 3, research_context: { household_members: ["有儿童家庭", "有老人家庭"], security_scenarios: ["老人儿童照护"] } } },
-  { id: "camera-free", question: "未来无摄像头安防是否存在新的产品机会？", preset: { constraints: ["无摄像头"], forecast_horizon_years: 3, research_context: { privacy_preferences: ["避免室内摄像头"], desired_outcomes: ["保护隐私"] } } },
 ];
 
 /** Six-dimension fallback used only when the backend options are unavailable. */

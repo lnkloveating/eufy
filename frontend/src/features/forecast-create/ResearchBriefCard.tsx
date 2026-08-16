@@ -57,7 +57,7 @@ export function ResearchBriefCard({
         </span>
         <div className="stack stack-micro">
           <span className="eyebrow">
-            研究任务确认 Research Brief · 完成度 {getBriefCompleteness(brief)}%
+            研究任务确认 · 完成度 {getBriefCompleteness(brief)}%
           </span>
           <strong style={{ fontSize: "var(--text-lg)" }}>
             {describeBrief(brief, regionLabel)}

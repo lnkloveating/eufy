@@ -24,10 +24,9 @@ def test_layered_retrieval_routes_regions_and_does_not_return_entire_store() -> 
     evidence_path = Path(__file__).resolve().parents[2] / "data" / "evidence"
     store = LocalEvidenceStore(evidence_path)
     china_request = ForecastRequest(
-        question="预测未来三年中国城市公寓家庭的AI原生无摄像头安防产品机会",
+        question="预测未来三年中国城市公寓家庭的AI原生安防产品机会",
         regions=["China"],
         target_users=["Urban apartment households"],
-        constraints=["不使用室内摄像头"],
     )
     us_request = china_request.model_copy(
         update={"regions": ["United States"], "target_users": ["Detached-home households"]}
@@ -38,7 +37,7 @@ def test_layered_retrieval_routes_regions_and_does_not_return_entire_store() -> 
 
     assert len(china_records) < len(store.load())
     assert len(us_records) < len(store.load())
-    assert "camera_free" in china_plan.query_topics
+    assert "apartment" in china_plan.query_topics
     assert {record.id for record in china_records} != {record.id for record in us_records}
     assert sum("China" in record.regions for record in china_records) >= 8
     assert sum("United States" in record.regions for record in us_records) >= 8
@@ -74,7 +73,7 @@ def test_structured_research_context_changes_retrieval_topics() -> None:
         **common,
         research_context=ResearchContext(
             housing_types=["城市公寓"],
-            privacy_preferences=["避免室内摄像头", "优先端侧 AI"],
+            privacy_preferences=["敏感数据不出户", "优先端侧 AI"],
             desired_outcomes=["保护隐私"],
         ),
     )
@@ -89,6 +88,6 @@ def test_structured_research_context_changes_retrieval_topics() -> None:
     private_plan, private_records = store.retrieve(private_request)
     perimeter_plan, perimeter_records = store.retrieve(perimeter_request)
 
-    assert {"apartment", "camera_free", "privacy", "edge_ai"} <= set(private_plan.query_topics)
+    assert {"apartment", "privacy", "edge_ai"} <= set(private_plan.query_topics)
     assert {"detached_home", "vehicle", "package"} <= set(perimeter_plan.query_topics)
     assert [record.id for record in private_records] != [record.id for record in perimeter_records]

@@ -71,7 +71,7 @@ export function ResearchLedger({ artifacts, events, active }: ResearchLedgerProp
     <div className="panel">
       <div className="panel-head">
         <span className="panel-title">
-          <Gauge size={16} aria-hidden="true" /> Research Ledger
+          <Gauge size={16} aria-hidden="true" /> 研究台账
         </span>
         {computing && (
           <span className="conn-pill conn-connecting">
@@ -90,7 +90,7 @@ export function ResearchLedger({ artifacts, events, active }: ResearchLedgerProp
         <LedgerRow icon={<Swords size={13} aria-hidden="true" />} label="已分析竞品资料">
           <AnimatedValue value={counts.competitorCount} />
         </LedgerRow>
-        <LedgerRow icon={<Cpu size={13} aria-hidden="true" />} label="已完成 Agent">
+        <LedgerRow icon={<Cpu size={13} aria-hidden="true" />} label="已完成智能体">
           <AnimatedValue value={completedCount} />
         </LedgerRow>
         <LedgerRow icon={<MapIcon size={13} aria-hidden="true" />} label="机会">
@@ -104,14 +104,14 @@ export function ResearchLedger({ artifacts, events, active }: ResearchLedgerProp
         </LedgerRow>
 
         <div className="hr" style={{ margin: "var(--space-2) 0" }} />
-        <div className="ledger-section-label">Token 与耗时（已确认）</div>
-        <LedgerRow label="已确认输入 Token">
+        <div className="ledger-section-label">模型用量与耗时（已确认）</div>
+        <LedgerRow label="已确认输入用量">
           <AnimatedValue value={metrics.confirmedInputTokens} />
         </LedgerRow>
-        <LedgerRow label="已确认输出 Token">
+        <LedgerRow label="已确认输出用量">
           <AnimatedValue value={metrics.confirmedOutputTokens} />
         </LedgerRow>
-        <LedgerRow label="总 Token">
+        <LedgerRow label="模型总用量">
           <strong>
             <AnimatedValue value={metrics.totalTokens} />
           </strong>

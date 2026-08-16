@@ -6,7 +6,7 @@ describe("stage label mapping", () => {
     expect(getStageLabel("queued")).toBe("等待启动");
     expect(getStageLabel("evidence_selection")).toBe("本地证据选择");
     expect(getStageLabel("future_forecasting")).toBe("多视角未来预测");
-    expect(getStageLabel("forecast_deliberation")).toBe("Agent 交叉质疑");
+    expect(getStageLabel("forecast_deliberation")).toBe("智能体交叉质疑");
     expect(getStageLabel("consensus_formation")).toBe("共识与分歧");
     expect(getStageLabel("opportunity_synthesis")).toBe("未来机会聚合");
     expect(getStageLabel("competitor_analysis")).toBe("竞品空白分析");

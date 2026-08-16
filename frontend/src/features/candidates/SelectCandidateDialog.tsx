@@ -44,7 +44,7 @@ export function SelectCandidateDialog({
         setChanges([]);
         onClose();
       }}
-      title="选择该方向并生成 ProductSpec"
+      title="选择该方向并生成产品定义"
       description={
         ranked ? (
           <span>
@@ -68,7 +68,7 @@ export function SelectCandidateDialog({
             }
             iconStart={!pending ? <Wand2 size={16} aria-hidden="true" /> : undefined}
           >
-            {pending ? "正在生成 ProductSpec…" : "确认并生成"}
+            {pending ? "正在生成产品定义…" : "确认并生成"}
           </Button>
         </>
       }
@@ -79,7 +79,7 @@ export function SelectCandidateDialog({
           <div className="alert-body">
             <span className="alert-title">正在将候选方向转换为标准产品定义</span>
             <span>
-              该步骤由 LLM 生成完整 ProductSpec，可能需要数十秒，请勿关闭页面或重复提交。
+              该步骤由大语言模型生成完整产品定义，可能需要数十秒，请勿关闭页面或重复提交。
             </span>
           </div>
         </div>
@@ -87,7 +87,7 @@ export function SelectCandidateDialog({
         <>
           <Field
             label="选择理由 Selection reason"
-            hint="可选：说明你为什么选择这个方向，会写入 ProductSpec。"
+            hint="可选：说明你为什么选择这个方向，会写入产品定义。"
           >
             {(aria) => (
               <textarea
@@ -103,8 +103,8 @@ export function SelectCandidateDialog({
           </Field>
 
           <Field
-            label="希望 AI 调整的内容 Requested changes"
-            hint="可选：逐条列出希望在 ProductSpec 中调整或强化的点。"
+            label="希望 AI 调整的内容"
+            hint="可选：逐条列出希望在产品定义中调整或强化的点。"
           >
             {(aria) => (
               <TagInput

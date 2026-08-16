@@ -50,7 +50,7 @@ function HealthAlerts({
           <AlertTriangle size={18} className="alert-icon" aria-hidden="true" />
           <div className="alert-body">
             <span className="alert-title">LLM 未配置</span>
-            <span>后端尚未检测到 LLM API Key。多 Agent 研究依赖模型能力，请先完成后端配置。</span>
+            <span>后端尚未检测到大语言模型 API 密钥。多智能体研究依赖模型能力，请先完成后端配置。</span>
           </div>
         </div>
       )}

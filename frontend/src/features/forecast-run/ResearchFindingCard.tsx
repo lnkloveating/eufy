@@ -30,7 +30,7 @@ function findingMeta(kind: string): FindingMeta {
   if (kind === "evidence") return { label: "本地证据检索", nature: "事实", icon: <Database size={14} /> };
   if (kind.startsWith("lens_forecast:")) return { label: "未来趋势预测", nature: "研究归纳", icon: <TrendingUp size={14} /> };
   if (kind === "lens_forecasts") return { label: "趋势预测汇总", nature: "研究归纳", icon: <TrendingUp size={14} /> };
-  if (kind.startsWith("lens_deliberation:")) return { label: "Agent 交叉质疑", nature: "研究归纳", icon: <MessageSquareWarning size={14} /> };
+  if (kind.startsWith("lens_deliberation:")) return { label: "智能体交叉质疑", nature: "研究归纳", icon: <MessageSquareWarning size={14} /> };
   if (kind === "lens_deliberations") return { label: "交叉审核汇总", nature: "研究归纳", icon: <MessageSquareWarning size={14} /> };
   if (kind === "forecast_consensus" || kind === "forecast_consensus_call") return { label: "共识与分歧裁决", nature: "研究归纳", icon: <Scale size={14} /> };
   if (kind.startsWith("candidate_generation_attempt:")) return { label: "候选生成与契约校验", nature: "假设", icon: <Boxes size={14} /> };

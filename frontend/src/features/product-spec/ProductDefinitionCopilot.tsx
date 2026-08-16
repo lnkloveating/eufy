@@ -173,9 +173,9 @@ export function ProductDefinitionCopilot({
           <MessageCircleQuestion size={16} aria-hidden="true" />
         </span>
         <div className="stack stack-micro">
-          <h2 className="section-title">产品定义审查 Copilot</h2>
+          <h2 className="section-title">产品定义审查助手</h2>
           <span className="muted" style={{ fontSize: "var(--text-sm)" }}>
-            向审查 Agent 提问。它基于研究证据、当前 eufy 能力与竞品作答，并区分证据、推断、假设与未知。
+            向审查智能体提问。它基于研究证据、当前 eufy 能力与竞品作答，并区分证据、推断、假设与未知。
           </span>
         </div>
       </div>
@@ -184,7 +184,7 @@ export function ProductDefinitionCopilot({
         <ShieldAlert size={16} className="alert-icon" aria-hidden="true" />
         <div className="alert-body">
           <span>
-            审查 Agent 只解释与审查产品定义，不会声称技术、商业、隐私或场景验证已通过；这些结论将由后续验证实验室产生。
+            审查智能体只解释与审查产品定义，不会声称技术、商业、隐私或场景验证已通过；这些结论将由后续验证实验室产生。
           </span>
         </div>
       </div>
@@ -223,11 +223,11 @@ export function ProductDefinitionCopilot({
           maxLength={1000}
           disabled={busy}
           placeholder="例如：断网后还能工作吗？哪些能力可以在端侧运行？访客数据保留多久？"
-          aria-label="向产品定义审查 Agent 提问"
+          aria-label="向产品定义审查智能体提问"
         />
         <div className="row between wrap row-gap-2">
           <span className="subtle" style={{ fontSize: "var(--text-xs)" }}>
-            回答来自后端真实 Agent，可能需要数十秒，请勿重复提交。
+            回答来自后端真实智能体，可能需要数十秒，请勿重复提交。
           </span>
           <Button
             type="submit"
@@ -236,7 +236,7 @@ export function ProductDefinitionCopilot({
             disabled={busy || !draft.trim()}
             iconStart={!busy ? <Send size={15} aria-hidden="true" /> : undefined}
           >
-            {busy ? "审查 Agent 正在分析…" : "提问"}
+            {busy ? "审查智能体正在分析…" : "提问"}
           </Button>
         </div>
       </form>
@@ -245,7 +245,7 @@ export function ProductDefinitionCopilot({
         <div className="alert alert-info" role="status" style={{ marginTop: "var(--space-4)" }}>
           <Loader2 size={16} className="alert-icon spin-inline" aria-hidden="true" />
           <div className="alert-body">
-            <span className="alert-title">产品定义审查 Agent 正在分析…</span>
+            <span className="alert-title">产品定义审查智能体正在分析…</span>
             <span>正在结合研究证据、当前能力与竞品资料生成回答。</span>
           </div>
         </div>
@@ -582,7 +582,7 @@ function SuggestionCard({
           <Lightbulb size={16} className="alert-icon" aria-hidden="true" />
           <div className="alert-body">
             <span className="alert-title">是否根据本次提问增加一个 Validation？</span>
-            <span>Copilot 只生成候选；只有你确认后，它才会写入 Validation Readiness 并生成新版本。</span>
+            <span>审查助手只生成候选；只有你确认后，它才会写入验证准备清单并生成新版本。</span>
           </div>
         </div>
       )}
@@ -688,12 +688,12 @@ function ConfirmChangeDialog({
           <span>
             {target.suggestion.kind === "validation_hypothesis" ? (
               <>
-                将把这条候选写入 <strong>Validation Readiness</strong>。这会生成新的 ProductSpec 版本。
+                将把这条候选写入 <strong>验证准备清单</strong>。这会生成新的产品定义版本。
               </>
             ) : (
               <>
                 将对「{sectionLabel(target.suggestion.section)}」执行：
-                <strong> {DISPOSITION_META[target.disposition]}</strong>。这会生成新的 ProductSpec 版本。
+                <strong> {DISPOSITION_META[target.disposition]}</strong>。这会生成新的产品定义版本。
               </>
             )}
           </span>

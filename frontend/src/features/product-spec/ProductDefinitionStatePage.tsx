@@ -44,7 +44,7 @@ export function ProductDefinitionStatePage() {
         <div className="page-header">
           <Link to={`/runs/${encodeURIComponent(runId)}`} className="row row-gap-2 muted">
             <ArrowLeft size={15} aria-hidden="true" />
-            返回多 Agent 实时研究
+            返回多智能体实时研究
           </Link>
         </div>
 
@@ -57,7 +57,7 @@ export function ProductDefinitionStatePage() {
             </div>
           </div>
           <p className="muted" style={{ fontSize: "var(--text-sm)", maxWidth: "75ch" }}>
-            以下产品由当前研究任务生成。你可以查看多维评审和证据，自由选择任意候选；选择后系统才会生成最终 ProductSpec。
+            以下产品由当前研究任务生成。你可以查看多维评审和证据，自由选择任意候选；选择后系统才会生成最终产品定义。
           </p>
           <span className="chip mono" style={{ width: "fit-content" }}>{runId}</span>
         </div>
@@ -130,14 +130,14 @@ export function ProductDefinitionStatePage() {
 const STATE_CONTENT = {
   researching: {
     title: "正在研究与预测候选产品",
-    description: "多 Agent 正在分析证据、机会和候选方向。研究完成后，这里会进入候选选择阶段。",
+    description: "多个智能体正在分析证据、机会和候选方向。研究完成后，这里会进入候选选择阶段。",
     action: "查看实时研究",
     icon: Loader2,
     spinning: true,
   },
   generating: {
     title: "正在生成产品定义",
-    description: "系统正在把你选择的候选方向转换为标准 ProductSpec，完成后会自动打开结果。",
+    description: "系统正在把你选择的候选方向转换为标准产品定义，完成后会自动打开结果。",
     action: "查看生成进度",
     icon: Loader2,
     spinning: true,

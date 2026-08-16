@@ -58,7 +58,7 @@ export function ResearchContextPanel({ request }: { request: ForecastRequest }) 
             ))}
           </div>
         ) : (
-          <div className="empty-inline">本次研究未设置详细上下文，Agent 保持开放探索。</div>
+          <div className="empty-inline">本次研究未设置详细上下文，智能体保持开放探索。</div>
         )}
       </div>
 

@@ -341,7 +341,7 @@ function ContextSettings({
         <div className="stack stack-micro">
           <strong>详细研究上下文</strong>
           <span className="subtle" style={{ fontSize: "var(--text-xs)" }}>
-            选填；这些结构化信息会参与本地 RAG 和所有 Agent 分析。
+            选填；这些结构化信息会参与本地检索增强和所有智能体分析。
           </span>
         </div>
         <span className="chip chip-outline">全部选填</span>

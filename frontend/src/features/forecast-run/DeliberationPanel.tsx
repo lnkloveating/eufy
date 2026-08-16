@@ -61,7 +61,7 @@ export function DeliberationPanel({
         <article className="card card-pad stack stack-3 deliberation-carousel-card">
           <div className="row between wrap row-gap-2 deliberation-carousel-head">
             <div className="row row-gap-2 wrap deliberation-carousel-title" style={{ minWidth: 0 }}>
-              <strong>{getLensLabel(activeDeliberation.reviewer_lens)} Agent</strong>
+              <strong>{getLensLabel(activeDeliberation.reviewer_lens)}智能体</strong>
               {deliberations.length > 1 && (
                 <span className="chip chip-outline">
                   {activeIndex + 1} / {deliberations.length}
@@ -74,8 +74,8 @@ export function DeliberationPanel({
                 className="carousel-arrow"
                 onClick={goPrevious}
                 disabled={deliberations.length <= 1}
-                aria-label="上一个 Agent"
-                title="上一个 Agent"
+                aria-label="上一个智能体"
+                title="上一个智能体"
               >
                 <ChevronLeft size={16} aria-hidden="true" />
               </button>
@@ -84,8 +84,8 @@ export function DeliberationPanel({
                 className="carousel-arrow"
                 onClick={goNext}
                 disabled={deliberations.length <= 1}
-                aria-label="下一个 Agent"
-                title="下一个 Agent"
+                aria-label="下一个智能体"
+                title="下一个智能体"
               >
                 <ChevronRight size={16} aria-hidden="true" />
               </button>

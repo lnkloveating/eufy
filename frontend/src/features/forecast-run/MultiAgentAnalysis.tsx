@@ -21,7 +21,7 @@ export function MultiAgentAnalysis({ result }: { result: ForecastResult }) {
     },
     {
       key: "insights",
-      label: "Agent 独立判断",
+      label: "智能体独立判断",
       count: result.lens_forecasts.length,
       icon: <Compass size={15} aria-hidden="true" />,
     },
@@ -45,7 +45,7 @@ export function MultiAgentAnalysis({ result }: { result: ForecastResult }) {
         items={items}
         active={active}
         onChange={(key) => setActive(key as AnalysisTabKey)}
-        ariaLabel="多 Agent 分析"
+        ariaLabel="多智能体分析"
       />
 
       {active === "deliberation" && (

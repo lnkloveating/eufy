@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from uuid import uuid4
 
 from eufy_security_agents.core.serialization import compact_json
@@ -93,6 +94,29 @@ REVIEW_PROMPTS = {
 
 PRODUCT_ARCHITECT_BATCH_SIZE = 3
 INNOVATION_VECTOR_SEQUENCE = list(InnovationVector)
+
+_CJK_PRODUCT_NAME = re.compile(r"[\u3400-\u9fff]")
+_ENGLISH_PRODUCT_NAMES = {
+    InnovationVector.NEW_SENSING: "SenseNova",
+    InnovationVector.PROACTIVE_INTERVENTION: "GuardPilot",
+    InnovationVector.DISTRIBUTED_ARCHITECTURE: "MeshSentinel",
+    InnovationVector.RESILIENCE_RECOVERY: "EverGuard",
+    InnovationVector.TRUST_PRIVACY: "TrustHalo",
+    InnovationVector.HUMAN_AI_COORDINATION: "AccordAI",
+    InnovationVector.NEW_BUSINESS_DELIVERY: "SecureFlex",
+}
+
+
+def _english_product_name(
+    name: str,
+    innovation_vector: InnovationVector | None,
+) -> str:
+    """Keep model-authored English names; replace accidental Chinese names deterministically."""
+
+    cleaned = name.strip()
+    if cleaned and not _CJK_PRODUCT_NAME.search(cleaned):
+        return cleaned
+    return _ENGLISH_PRODUCT_NAMES.get(innovation_vector, "Eufy Horizon")
 
 
 def _innovation_vector_plan(
@@ -648,6 +672,9 @@ class ProductArchitectAgent(BaseAgent):
             "competitor evidence IDs supplied above and add questions that can falsify the claimed "
             "advantage. Do not claim a competitor lacks a capability merely because a source does "
             "not mention it. "
+            "The candidate name field is a brand name: write it in concise English only, using "
+            "Latin letters, even when every descriptive field is Chinese. Do not use a Chinese "
+            "product name. "
             "Use the user's primary language."
         )
         return await self._generate_candidate_batch(
@@ -696,7 +723,15 @@ class ProductArchitectAgent(BaseAgent):
                 f"product architect batch must return exactly {len(expected_ids)} candidates"
             )
         normalized = [
-            candidate.model_copy(update={"id": expected_id})
+            candidate.model_copy(
+                update={
+                    "id": expected_id,
+                    "name": _english_product_name(
+                        candidate.name,
+                        candidate.capability_delta.innovation_vector,
+                    ),
+                }
+            )
             for candidate, expected_id in zip(batch, expected_ids, strict=True)
         ]
         return _combine_candidate_outputs(outputs, normalized)
@@ -1216,14 +1251,20 @@ class ProductDefinitionAgent(BaseAgent):
             "proven. Populate validation_readiness with falsifiable tests "
             "that a later technical, commercial, privacy, UX or spatial simulator could execute. "
             "Preserve or strengthen regional_fit for every requested market. Use only provided "
-            "evidence IDs. Use the user's primary language."
+            "evidence IDs. When the research question is Chinese, write every user-facing "
+            "ProductSpec field in fluent Simplified Chinese except name. The name field must stay "
+            "a concise English brand name using Latin letters; keep necessary brand names, "
+            "acronyms, JSON keys and enum values in English."
             " Preserve competitive_positioning, resolve any reviewer concerns about imitation, "
             "and make its validation questions executable by the later validation system."
         )
         output = await self._generate(
             system_prompt=(
                 "You are a principal product-definition lead. You turn a human-selected AI concept "
-                "into a testable product specification without claiming that it has been validated."
+                "into a testable product specification without claiming that it has been validated. "
+                "For a Chinese research task, all human-readable product content must be fluent "
+                "Simplified Chinese except the product name, which must be an English brand name. "
+                "Necessary technical acronyms may remain in English."
             ),
             user_prompt=prompt,
             response_model=ProductSpecEnvelope,
@@ -1235,6 +1276,10 @@ class ProductDefinitionAgent(BaseAgent):
                 "source_run_id": run_id,
                 "source_candidate_id": ranked_candidate.candidate.id,
                 "version": "1.0",
+                "name": _english_product_name(
+                    ranked_candidate.candidate.name,
+                    ranked_candidate.candidate.capability_delta.innovation_vector,
+                ),
                 "human_selection_reason": selection.selection_reason,
                 "capability_delta": ranked_candidate.candidate.capability_delta,
             }
@@ -1441,11 +1486,27 @@ class ProductSpecReviserAgent(BaseAgent):
             "validation_readiness 中。\n"
             f"5. evidence_ids 只能来自 {valid_evidence_ids}；competitive_positioning."
             f"competitor_evidence_ids 只能来自 {valid_competitor_ids}；不要编造编号。\n"
-            "6. 使用与当前 ProductSpec 相同的主要语言。"
+            "6. 中文任务必须使用自然、易读的简体中文；即使旧版 ProductSpec 含英文，也要把所有"
+            "说明性自然语言字段转为中文，但 name 必须保持简短英文品牌名，不得翻译成中文。"
+            "必要技术缩写、JSON 字段名和枚举值可保留。"
         )
-        return await self._generate(
+        output = await self._generate(
             system_prompt=PRODUCT_REVISER_SYSTEM,
             user_prompt=prompt,
             response_model=ProductSpecEnvelope,
             temperature=0.3,
+        )
+        revised = output.value.product.model_copy(
+            update={
+                "name": _english_product_name(
+                    output.value.product.name,
+                    output.value.product.capability_delta.innovation_vector
+                    if output.value.product.capability_delta
+                    else None,
+                )
+            }
+        )
+        return AgentOutput(
+            value=ProductSpecEnvelope(product=revised),
+            metadata=output.metadata,
         )

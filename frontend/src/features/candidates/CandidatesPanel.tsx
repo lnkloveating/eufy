@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Award,
@@ -15,6 +15,7 @@ import type {
 } from "../../types/api";
 import { SCORE_DIMENSIONS } from "../../types/api";
 import { getDimensionLabel } from "../../lib/agentLabels";
+import { localizeRankedCandidateForDisplay } from "../../lib/displayLocalization";
 import { orderForDisplay, topCandidate } from "../../lib/candidates";
 import { formatScore } from "../../lib/formatters";
 import { ApiError } from "../../lib/api/client";
@@ -61,7 +62,12 @@ export function CandidatesPanel({ runId, candidates, noveltyAudit }: CandidatesP
   const [selecting, setSelecting] = useState<RankedCandidate | null>(null);
   const [selectError, setSelectError] = useState<string | null>(null);
 
-  if (candidates.length === 0) {
+  const localizedCandidates = useMemo(
+    () => candidates.map(localizeRankedCandidateForDisplay),
+    [candidates],
+  );
+
+  if (localizedCandidates.length === 0) {
     return (
       <EmptyState
         icon={<Boxes size={24} aria-hidden="true" />}
@@ -71,8 +77,8 @@ export function CandidatesPanel({ runId, candidates, noveltyAudit }: CandidatesP
     );
   }
 
-  const ordered = orderForDisplay(candidates);
-  const best = topCandidate(candidates);
+  const ordered = orderForDisplay(localizedCandidates);
+  const best = topCandidate(localizedCandidates);
   const noveltyByCandidate = new Map(
     (noveltyAudit?.assessments ?? []).map((item) => [item.candidate_id, item]),
   );
@@ -96,13 +102,13 @@ export function CandidatesPanel({ runId, candidates, noveltyAudit }: CandidatesP
         requested_changes: input.requestedChanges,
         idempotency_key: `selection:${runId}:${selecting.candidate.id}`,
       });
-      toast.success("ProductSpec 已生成", "正在打开标准产品定义…");
+      toast.success("产品定义已生成", "正在打开标准产品定义…");
       navigate(`/products/${product.id}`);
     } catch (error) {
       const detail =
-        error instanceof ApiError ? error.detail : "生成 ProductSpec 失败，请稍后重试。";
+        error instanceof ApiError ? error.detail : "生成产品定义失败，请稍后重试。";
       setSelectError(detail);
-      toast.error("生成 ProductSpec 失败", detail);
+      toast.error("生成产品定义失败", detail);
     }
   };
 
@@ -110,7 +116,7 @@ export function CandidatesPanel({ runId, candidates, noveltyAudit }: CandidatesP
     <div className="stack stack-5">
       <div className="row between wrap row-gap-3">
         <p className="muted" style={{ fontSize: "var(--text-sm)", maxWidth: "60ch" }}>
-          以下候选由 Product Architect 依据机会与证据动态生成，并经过五个维度独立盲评。
+          以下候选由产品架构智能体依据机会与证据动态生成，并经过五个维度独立盲评。
           你可以自由选择任意候选（包括排名最后的方向），系统不会替你决定。
         </p>
         <div className="row" role="group" aria-label="视图切换" style={{ gap: 2 }}>

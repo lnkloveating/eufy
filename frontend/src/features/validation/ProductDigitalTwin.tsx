@@ -30,6 +30,7 @@ import {
   type TwinTutorialPhase,
 } from "../../lib/twinTutorial";
 import { Button } from "../../components/ui/Button";
+import { DIGITAL_TWIN_COMPONENT_LABELS } from "../../lib/displayLocalization";
 
 interface Props {
   spec: ProductDigitalTwinSpec;
@@ -528,7 +529,9 @@ function DigitalTwinFallback({ spec }: { spec: ProductDigitalTwinSpec }) {
       <span>当前设备无法启用 WebGL，以下产品组件仍可查看：</span>
       <div className="row row-gap-2 wrap">
         {spec.components.map((component) => (
-          <span className="chip" key={component.id}>{component.label}</span>
+          <span className="chip" key={component.id}>
+            {DIGITAL_TWIN_COMPONENT_LABELS[component.kind] ?? component.label}
+          </span>
         ))}
       </div>
     </div>
@@ -536,7 +539,20 @@ function DigitalTwinFallback({ spec }: { spec: ProductDigitalTwinSpec }) {
 }
 
 export function ProductDigitalTwin({ spec, product, productName }: Props) {
-  const steps = useMemo(() => buildTwinTutorialSteps(spec, product), [spec, product]);
+  const tutorialSpec = useMemo(
+    () => ({
+      ...spec,
+      components: spec.components.map((component) => ({
+        ...component,
+        label: DIGITAL_TWIN_COMPONENT_LABELS[component.kind] ?? component.label,
+      })),
+    }),
+    [spec],
+  );
+  const steps = useMemo(
+    () => buildTwinTutorialSteps(tutorialSpec, product),
+    [tutorialSpec, product],
+  );
   const [frameIndex, setFrameIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
   const webgl = useMemo(hasWebGL, []);
@@ -608,7 +624,7 @@ export function ProductDigitalTwin({ spec, product, productName }: Props) {
     }
   }
 
-  const componentNotes = spec.components.map((component) => component.label);
+  const componentNotes = tutorialSpec.components.map((component) => component.label);
   const privacyNotes = [...product.privacy_principles, product.ai_decision_boundary].filter(Boolean);
 
   return (
@@ -653,7 +669,7 @@ export function ProductDigitalTwin({ spec, product, productName }: Props) {
           </button>
           <div className="vlab-twin-caption">
             <div>
-              <span className="eyebrow">PARAMETRIC DIGITAL TWIN</span>
+              <span className="eyebrow">参数化 3D 数字样机</span>
               <strong>{productName}</strong>
               <span>{ARCHETYPE_LABELS[spec.archetype]} · 设计变体 {spec.design_variant + 1}</span>
             </div>
@@ -669,7 +685,7 @@ export function ProductDigitalTwin({ spec, product, productName }: Props) {
               onClick={() => jumpToKind(component.kind)}
               title={`查看「${component.label}」如何使用`}
             >
-              <span /> {component.label}
+              <span /> {DIGITAL_TWIN_COMPONENT_LABELS[component.kind] ?? component.label}
             </button>
           ))}
         </div>
@@ -678,7 +694,7 @@ export function ProductDigitalTwin({ spec, product, productName }: Props) {
       <div className="vlab-scenario-side">
         <div className="vlab-demo-head">
           <div>
-            <span className="eyebrow">PRODUCT TUTORIAL · 设备使用导览</span>
+            <span className="eyebrow">产品功能教程 · 设备使用导览</span>
             <h3>{step?.phaseLabel ?? "设备导览"}</h3>
           </div>
           <div className="row row-gap-2 wrap">
@@ -690,7 +706,7 @@ export function ProductDigitalTwin({ spec, product, productName }: Props) {
           <div className="vlab-live-card-progress"><span style={{ width: `${progress}%` }} /></div>
           <div className="row between row-gap-2">
             <span className="vlab-live-kicker">
-              STEP {frameIndex + 1} / {steps.length}
+              步骤 {frameIndex + 1} / {steps.length}
             </span>
             {alarm && <span className="badge badge-failed">告警演示</span>}
           </div>
@@ -706,7 +722,9 @@ export function ProductDigitalTwin({ spec, product, productName }: Props) {
             <span>当前激活模块</span>
             {[...activeKinds].length ? (
               [...activeKinds].map((kind) => (
-                <span className="vlab-signal-chip" key={kind}><span /> {kind.replaceAll("_", " ")}</span>
+                <span className="vlab-signal-chip" key={kind}>
+                  <span /> {DIGITAL_TWIN_COMPONENT_LABELS[kind] ?? kind}
+                </span>
               ))
             ) : (
               <span className="subtle">设备待机，尚未唤醒硬件模块</span>

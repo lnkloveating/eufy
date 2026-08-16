@@ -42,15 +42,15 @@ function focusMessage(stage: string, regions: string[]): string {
   const regionText = regions.join("、") || "目标市场";
   switch (stage) {
     case "queued":
-      return "正在编排研究流水线并准备多 Agent 协作……";
+      return "正在编排研究流水线并准备多智能体协作……";
     case "evidence_selection":
       return `正在从本地分层知识库检索 ${regionText} 的住宅、用户需求、隐私法规与商业模式资料……`;
     case "future_forecasting":
-      return "四个视角 Agent 正在并行预测用户、技术、安防与市场趋势……";
+      return "四个视角智能体正在并行预测用户、技术、安防与市场趋势……";
     case "forecast_deliberation":
       return "四个视角正在交叉审核：接受有证据的观点、质疑过度推断，并修正自身置信度……";
     case "consensus_formation":
-      return "独立裁决 Agent 正在区分证据共识、少数意见、未解决分歧与下一步验证需求……";
+      return "独立裁决智能体正在区分证据共识、少数意见、未解决分歧与下一步验证需求……";
     case "opportunity_synthesis":
       return "正在合并四个预测视角，去重并形成未来机会……";
     case "competitor_analysis":
@@ -60,9 +60,9 @@ function focusMessage(stage: string, regions: string[]): string {
     case "portfolio_diversity_audit":
       return "正在两两比较候选的用户任务、产品形态、感知与执行机制、系统架构和商业交付；重复方向将被定向重生……";
     case "candidate_review":
-      return "六个盲评 Agent 正在从创新性、用户价值、商业价值、性价比、可行性与 eufy 协同性独立打分……";
+      return "六个盲评智能体正在从创新性、用户价值、商业价值、性价比、可行性与 eufy 协同性独立打分……";
     default:
-      return "多个 Agent 正在并行工作，研究发现会实时出现在这里。";
+      return "多个智能体正在并行工作，研究发现会实时出现在这里。";
   }
 }
 
@@ -121,7 +121,7 @@ export function LiveResearchCanvas({ stage, regions, events, artifacts }: LiveRe
       {/* Parallel-agent activity for the two fan-out phases */}
       {stage === "future_forecasting" && (
         <div className="stack stack-3">
-          <span className="opp-section-label">多视角未来预测 · 并行 Agent</span>
+          <span className="opp-section-label">多视角未来预测 · 并行智能体</span>
           <AgentActivityGrid agents={LENS_AGENTS} events={events} artifacts={artifacts} />
         </div>
       )}
